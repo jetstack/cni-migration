@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
 	"os/exec"
 	"time"
 
@@ -19,7 +20,7 @@ func (m *migration) checkKnetStressStatus() error {
 	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*30)
 	defer cancel()
 
-	ticker := time.NewTicker(time.Second * 2)
+	ticker := time.NewTicker(time.Second * 5)
 
 	for {
 		pods, err := m.kubeClient.CoreV1().Pods("knet-stress").List(context.TODO(), metav1.ListOptions{
@@ -31,11 +32,8 @@ func (m *migration) checkKnetStressStatus() error {
 
 		ready := true
 		for _, pod := range pods.Items {
-			args := []string{"kubectl", "exec", "--namespace", "knet-stress", "-it", pod.Name, "--status"}
-			m.log.Infof("%s", args)
-
-			err := exec.Command(args[0], args[1:]...).Run()
-			if err != nil {
+			args := []string{"kubectl", "exec", "--namespace", "knet-stress", pod.Name, "--", "/knet-stress", "-status"}
+			if err := m.runCommand(args...); err != nil {
 				m.log.Error(err.Error())
 				ready = false
 				break
@@ -53,4 +51,18 @@ func (m *migration) checkKnetStressStatus() error {
 			continue
 		}
 	}
+}
+
+func (m *migration) runCommand(args ...string) error {
+	m.log.Infof("%s", args)
+
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
