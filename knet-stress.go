@@ -17,7 +17,7 @@ func (m *migration) checkKnetStressStatus() error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*30)
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second*1000)
 	defer cancel()
 
 	ticker := time.NewTicker(time.Second * 5)
