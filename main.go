@@ -111,6 +111,9 @@ func (m *migration) runMigration() error {
 	if err := m.createDaemonSet(CiliumYaml, "kube-system", "cilium"); err != nil {
 		return err
 	}
+	if err := m.createDaemonSet(CiliumYaml, "kube-system", "cilium-migrated"); err != nil {
+		return err
+	}
 	if err := m.createDaemonSet(KnetStressYaml, "knet-stress", "knet-stress"); err != nil {
 		return err
 	}
@@ -249,8 +252,6 @@ func (m *migration) migrateNodes() error {
 			return err
 		}
 
-		os.Exit(0)
-
 	}
 
 	return nil
@@ -364,7 +365,7 @@ func (m *migration) ensureNodeLabels() error {
 		_, migOK := node.Labels[MigratedNodeLabel]
 
 		// If we have multiple labels set then we should default to only running canal + cilium label
-		if (cclOK && clOK) || (cclOK && migOK) || (migOK && clOK) {
+		if (cclOK && clOK) || (cclOK && migOK) {
 			m.log.Infof("%s has multiple labels set, resetting to %s",
 				node.Name, CanalCiliumNodeLabel, CiliumNodeLabel, CanalCiliumNodeLabel)
 
@@ -402,19 +403,21 @@ func (m *migration) addCiliumTaint(nodeName string) error {
 		return err
 	}
 
-	var taints []corev1.Taint
+	hasTaint := false
 	for _, t := range node.Spec.Taints {
-		if t.Key != CiliumNodeLabel {
-			taints = append(taints, t)
+		if t.Key == CiliumNodeLabel {
+			hasTaint = true
+			break
 		}
 	}
 
-	taints = append(node.Spec.Taints, corev1.Taint{
-		Key:    CiliumNodeLabel,
-		Value:  CiliumNodeValueLabel,
-		Effect: corev1.TaintEffectNoExecute,
-	})
-	node.Spec.Taints = taints
+	if !hasTaint {
+		node.Spec.Taints = append(node.Spec.Taints, corev1.Taint{
+			Key:    CiliumNodeLabel,
+			Value:  CiliumNodeValueLabel,
+			Effect: corev1.TaintEffectNoExecute,
+		})
+	}
 
 	// Change label of node
 	delete(node.Labels, CanalCiliumNodeLabel)
@@ -457,7 +460,7 @@ func (m *migration) setNodeMigratedLabel(nodeName string) error {
 	}
 
 	// Set migrated label
-	delete(node.Labels, CiliumNodeLabel)
+	//delete(node.Labels, CiliumNodeLabel)
 	delete(node.Labels, CanalCiliumNodeLabel)
 	node.Labels[MigratedNodeLabel] = "true"
 
