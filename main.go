@@ -79,9 +79,13 @@ func newMigration() (*migration, error) {
 		return nil, fmt.Errorf("failed to build kind kubernetes client: %s", err)
 	}
 
+	logger := logrus.New()
+	logger.SetLevel(logrus.DebugLevel)
+	log := logrus.NewEntry(logger)
+
 	return &migration{
 		kubeClient: client,
-		log:        logrus.NewEntry(logrus.New()),
+		log:        log,
 	}, nil
 }
 
@@ -104,11 +108,15 @@ func (m *migration) runMigration() error {
 		return err
 	}
 
+	m.log.Info("Applying resources...")
 	// Create needed resources
+	if err := m.createDaemonSet(CiliumYaml, "kube-system", "cilium"); err != nil {
+		return err
+	}
 	if err := m.createDaemonSet(MultusYaml, "kube-system", "kube-multus-ds-amd64"); err != nil {
 		return err
 	}
-	if err := m.createDaemonSet(CiliumYaml, "kube-system", "cilium"); err != nil {
+	if err := m.createResource(NetworkAttachYaml, "kube-system", "cilium-conf"); err != nil {
 		return err
 	}
 	if err := m.createDaemonSet(CiliumYaml, "kube-system", "cilium-migrated"); err != nil {
@@ -123,14 +131,14 @@ func (m *migration) runMigration() error {
 		return err
 	}
 
-	// Apply cilium network attach
-	if err := m.createResource(NetworkAttachYaml, "kube-system", "cilium-conf"); err != nil {
+	// Danger Zone
+	// Patch all deployments etc.
+	m.log.Info("Adding cilium network attachment to all apps")
+	if err := m.patchAllApps(); err != nil {
 		return err
 	}
 
-	// Danger Zone
-	// Patch all deployments etc.
-	if err := m.patchAllApps(); err != nil {
+	if err := m.waitAllReady(); err != nil {
 		return err
 	}
 
@@ -178,80 +186,86 @@ func (m *migration) migrateNodes() error {
 	}
 
 	for _, node := range nodes.Items {
-
-		node, err := m.kubeClient.CoreV1().Nodes().Get(context.TODO(), node.Name, metav1.GetOptions{})
-		if err != nil {
+		if err := m.migrateNode(node.Name); err != nil {
 			return err
 		}
+	}
 
-		// Check is node needs migrating
-		if val, ok := node.Labels[MigratedNodeLabel]; ok && val == "true" {
-			m.log.Infof("Node already migrated %s", node.Name)
-			continue
-		}
+	return nil
+}
 
-		m.log.Infof("Migrating node %s", node.Name)
+func (m *migration) migrateNode(nodeName string) error {
+	node, err := m.kubeClient.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
 
-		m.log.Infof("Draining node %s", node.Name)
-		args := []string{"kubectl", "drain", node.Name}
-		if err := m.runCommand(args...); err != nil {
-			return err
-		}
+	// Check is node needs migrating
+	if val, ok := node.Labels[MigratedNodeLabel]; ok && val == "true" {
+		m.log.Infof("Node already migrated %s", node.Name)
+		return nil
+	}
 
-		//args = []string{"kubectl", "taint", "node", node.Name, "node-role.kubernetes.io/cilium=cilium:NoExecute", "--overwrite"}
-		//if err := m.runCommand(args...); err != nil {
-		//	return err
-		//}
+	m.log.Infof("Migrating node %s", node.Name)
 
-		// TODO: remove multus config from node
+	m.log.Infof("%s Draining node", node.Name)
+	args := []string{"kubectl", "drain", "--delete-local-data", "--ignore-daemonsets", node.Name}
+	if err := m.runCommand(args...); err != nil {
+		return err
+	}
 
-		// Add taint on node
-		m.log.Infof("Adding %s=%s:NoExecute taint to %s", CiliumNodeLabel, CiliumNodeValueLabel, node.Name)
-		if err := m.addCiliumTaint(node.Name); err != nil {
-			return err
-		}
+	args = []string{"kubectl", "taint", "node", node.Name, "node-role.kubernetes.io/cilium=cilium:NoExecute", "--overwrite"}
+	if err := m.runCommand(args...); err != nil {
+		return err
+	}
 
-		m.log.Infof("Restarting knet-stress")
-		args = []string{"kubectl", "rollout", "restart", "daemonset", "--namespace", "knet-stress", "knet-stress"}
-		if err := m.runCommand(args...); err != nil {
-			return err
-		}
+	// Add taint on node
+	m.log.Infof("%s Adding %s=%s:NoExecute taint", node.Name, CiliumNodeLabel, CiliumNodeValueLabel)
+	if err := m.addCiliumTaint(node.Name); err != nil {
+		return err
+	}
 
-		args = []string{"kubectl", "rollout", "status", "daemonset", "--namespace", "knet-stress", "knet-stress"}
-		if err := m.runCommand(args...); err != nil {
-			return err
-		}
+	// Delete all pods on that node
+	if err := m.deletePodsOnNode(node.Name); err != nil {
+		return err
+	}
 
-		if err := m.waitDaemonSetReady("knet-stress", "knet-stress"); err != nil {
-			return err
-		}
+	if err := m.waitAllReady(); err != nil {
+		return err
+	}
 
-		// Check knet connectivity
-		if err := m.checkKnetStressStatus(); err != nil {
-			return err
-		}
+	//if err := m.waitDaemonSetReady("knet-stress", "knet-stress"); err != nil {
+	//	return err
+	//}
 
-		// Remove taint on node
-		m.log.Infof("Removing %s=%s:NoExecute taint to %s", CiliumNodeLabel, CiliumNodeValueLabel, node.Name)
-		if err := m.deleteCiliumTaint(node.Name); err != nil {
-			return err
-		}
+	// Check knet connectivity
+	if err := m.checkKnetStressStatus(); err != nil {
+		return err
+	}
 
-		m.log.Infof("Uncordoning node %s", CiliumNodeLabel, CiliumNodeValueLabel, node.Name)
-		args = []string{"kubectl", "uncordon", node.Name}
-		if err := m.runCommand(args...); err != nil {
-			return err
-		}
+	// Remove taint on node
+	m.log.Infof("%s Removing %s=%s:NoExecute taint", node.Name, CiliumNodeLabel, CiliumNodeValueLabel)
+	if err := m.deleteCiliumTaint(node.Name); err != nil {
+		return err
+	}
 
-		if err := m.waitAllReady(); err != nil {
-			return err
-		}
+	m.log.Infof("%s Uncordoning node", node.Name)
+	args = []string{"kubectl", "uncordon", node.Name}
+	if err := m.runCommand(args...); err != nil {
+		return err
+	}
 
-		m.log.Infof("Adding label %s=true to %s", MigratedNodeLabel, node.Name)
-		if err := m.setNodeMigratedLabel(node.Name); err != nil {
-			return err
-		}
+	if err := m.waitAllReady(); err != nil {
+		return err
+	}
 
+	m.log.Infof("%s Adding label %s=true", node.Name, MigratedNodeLabel)
+	if err := m.setNodeMigratedLabel(node.Name); err != nil {
+		return err
+	}
+
+	if err := m.checkKnetStressStatus(); err != nil {
+		return err
 	}
 
 	return nil
@@ -272,7 +286,7 @@ func (m *migration) createDaemonSet(yamlFileName, namespace, name string) error 
 func (m *migration) createResource(yamlFileName, namespace, name string) error {
 	filePath := filepath.Join(options.resourcesDir, yamlFileName)
 
-	m.log.Infof("Applying %s: %s", name, filePath)
+	m.log.Debugf("Applying %s: %s", name, filePath)
 
 	args := []string{"kubectl", "apply", "--namespace", namespace, "-f", filePath}
 	if err := m.runCommand(args...); err != nil {
@@ -298,7 +312,7 @@ func (m *migration) ensureContolPlaneTolerations() error {
 		}
 
 		if needsToleration {
-			m.log.Infof("Adding %s:NoExecute Toleration to %s/%s", CiliumNodeLabel, ds.Namespace, ds.Name)
+			m.log.Debugf("Adding %s:NoExecute Toleration to %s/%s", CiliumNodeLabel, ds.Namespace, ds.Name)
 
 			ds.Spec.Template.Spec.Tolerations = append(ds.Spec.Template.Spec.Tolerations,
 				corev1.Toleration{
@@ -330,7 +344,7 @@ func (m *migration) ensureCanalNodeSelector() error {
 	// If canal DaemonSet does not have node selector than add it
 	val, ok := ds.Spec.Template.Spec.NodeSelector[CanalCiliumNodeLabel]
 	if !ok || val != CanalCiliumNodeValueLabel {
-		m.log.Infof("Adding node selector %s=%s to DeamonSet %s/%s",
+		m.log.Debugf("Adding node selector %s=%s to DeamonSet %s/%s",
 			CanalCiliumNodeLabel, CanalCiliumNodeValueLabel, ds.Namespace, ds.Name)
 
 		if ds.Spec.Template.Spec.NodeSelector == nil {
@@ -358,7 +372,12 @@ func (m *migration) ensureNodeLabels() error {
 		return err
 	}
 
-	for _, node := range nodes.Items {
+	for _, n := range nodes.Items {
+		node, err := m.kubeClient.CoreV1().Nodes().Get(context.TODO(), n.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
 		needsUpdate := false
 		_, cclOK := node.Labels[CanalCiliumNodeLabel]
 		_, clOK := node.Labels[CiliumNodeLabel]
@@ -385,7 +404,7 @@ func (m *migration) ensureNodeLabels() error {
 		}
 
 		if needsUpdate {
-			_, err := m.kubeClient.CoreV1().Nodes().Update(context.TODO(), &node, metav1.UpdateOptions{})
+			_, err := m.kubeClient.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
 			if err != nil {
 				return err
 			}
@@ -467,6 +486,32 @@ func (m *migration) setNodeMigratedLabel(nodeName string) error {
 	_, err = m.kubeClient.CoreV1().Nodes().Update(context.TODO(), node, metav1.UpdateOptions{})
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (m *migration) deletePodsOnNode(nodeName string) error {
+	nss, err := m.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+
+	for _, ns := range nss.Items {
+		pods, err := m.kubeClient.CoreV1().Pods(ns.Name).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			return err
+		}
+
+		for _, p := range pods.Items {
+			if p.Spec.NodeName == nodeName {
+				m.log.Debugf("Deleting pod %s on node %s", p.Name, nodeName)
+				err = m.kubeClient.CoreV1().Pods(ns.Name).Delete(context.TODO(), p.Name, metav1.DeleteOptions{})
+				if err != nil {
+					return err
+				}
+			}
+		}
 	}
 
 	return nil

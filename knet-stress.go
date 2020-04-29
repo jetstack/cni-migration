@@ -11,7 +11,7 @@ import (
 )
 
 func (m *migration) checkKnetStressStatus() error {
-	m.log.Info("Checking knet-stress connectivity")
+	m.log.Debugf("Checking knet-stress connectivity")
 
 	if err := m.waitDaemonSetReady("knet-stress", "knet-stress"); err != nil {
 		return err
@@ -54,7 +54,7 @@ func (m *migration) checkKnetStressStatus() error {
 }
 
 func (m *migration) runCommand(args ...string) error {
-	m.log.Infof("%s", args)
+	m.log.Debugf("%s", args)
 
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdout = os.Stdout

@@ -43,12 +43,12 @@ func (m *migration) patchDeloyments(nss *corev1.NamespaceList) error {
 		// If does not have network attachment annotation, add and apply
 		for _, deploy := range deploys.Items {
 			if deploy.Spec.Template.Spec.HostNetwork {
-				m.log.Infof("Skipping Deployment with host networking %s/%s", deploy.Namespace, deploy.Name)
+				m.log.Debugf("Skipping Deployment with host networking %s/%s", deploy.Namespace, deploy.Name)
 				continue
 			}
 
 			if val, ok := deploy.Spec.Template.Annotations[NetAttachAnnotationKey]; !ok || val != NetAttachAnnotationValue {
-				m.log.Infof("Adding network-attachment to Deployment %s/%s %s=%s",
+				m.log.Debugf("Adding network-attachment to Deployment %s/%s %s=%s",
 					deploy.Namespace, deploy.Name, NetAttachAnnotationKey, NetAttachAnnotationValue)
 
 				if deploy.Spec.Template.Annotations == nil {
@@ -81,12 +81,12 @@ func (m *migration) patchDaemonSets(nss *corev1.NamespaceList) error {
 		// If does not have network attachment annotation, add and apply
 		for _, ds := range ds.Items {
 			if ds.Spec.Template.Spec.HostNetwork {
-				m.log.Infof("Skipping DaemonSet with host networking %s/%s", ds.Namespace, ds.Name)
+				m.log.Debugf("Skipping DaemonSet with host networking %s/%s", ds.Namespace, ds.Name)
 				continue
 			}
 
 			if val, ok := ds.Spec.Template.Annotations[NetAttachAnnotationKey]; !ok || val != NetAttachAnnotationValue {
-				m.log.Infof("Adding network-attachment to DaemonSet %s/%s %s=%s",
+				m.log.Debugf("Adding network-attachment to DaemonSet %s/%s %s=%s",
 					ds.Namespace, ds.Name, NetAttachAnnotationKey, NetAttachAnnotationValue)
 
 				if ds.Spec.Template.Annotations == nil {
@@ -119,12 +119,12 @@ func (m *migration) patchStatefulSets(nss *corev1.NamespaceList) error {
 		// If does not have network attachment annotation, add and apply
 		for _, ss := range ss.Items {
 			if ss.Spec.Template.Spec.HostNetwork {
-				m.log.Infof("Skipping StatefulSet with host networking %s/%s", ss.Namespace, ss.Name)
+				m.log.Debugf("Skipping StatefulSet with host networking %s/%s", ss.Namespace, ss.Name)
 				continue
 			}
 
 			if val, ok := ss.Spec.Template.Annotations[NetAttachAnnotationKey]; !ok || val != NetAttachAnnotationValue {
-				m.log.Infof("Adding network-attachment to StatefulSet %s/%s %s=%s",
+				m.log.Debugf("Adding network-attachment to StatefulSet %s/%s %s=%s",
 					ss.Namespace, ss.Name, NetAttachAnnotationKey, NetAttachAnnotationValue)
 
 				ss.Spec.Template.Annotations[NetAttachAnnotationKey] = NetAttachAnnotationValue

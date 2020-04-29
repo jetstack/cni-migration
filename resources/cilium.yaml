@@ -148,7 +148,7 @@ data:
 
   # Custom Config
   #read-cni-conf: /tmp/cni-configuration/cni-config
-  #write-cni-conf-when-ready: /host/etc/cni/net.d/01-cilium.conf
+  #write-cni-conf-when-ready: /host/etc/cni/net.d/15-cilium.conf
 ---
 # Source: cilium/charts/config/templates/configmap.yaml
 apiVersion: v1
@@ -284,13 +284,8 @@ data:
   enable-remote-node-identity: "true"
 
   # Custom Config
-  #ipam: "crd"
-  #flannel-master-device: "flannel.2"
-  #flannel-master-device: "cni0"
-  #flannel-uninstall-on-exit: "true"
-  #flannel-uninstall-on-exit: "false"
-  read-cni-conf: /tmp/cni-configuration/cni-config
-  write-cni-conf-when-ready: /host/etc/cni/net.d/00-cilium.conf
+  #read-cni-conf: /tmp/cni-configuration/cni-config
+  #write-cni-conf-when-ready: /host/etc/cni/net.d/00-cilium.conf
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -557,6 +552,8 @@ spec:
               key: custom-cni-conf
               name: cilium-config
               optional: true
+        - name: CNI_CONF_NAME
+          value: 99-cilium.conf
         image: "docker.io/cilium/cilium:v1.7.2"
         imagePullPolicy: IfNotPresent
         lifecycle:
@@ -784,6 +781,8 @@ spec:
               key: custom-cni-conf
               name: cilium-config-migrated
               optional: true
+        - name: CNI_CONF_NAME
+          value: 00-cilium.conf
         image: "docker.io/cilium/cilium:v1.7.2"
         imagePullPolicy: IfNotPresent
         lifecycle:

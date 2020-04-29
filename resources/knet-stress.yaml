@@ -65,6 +65,7 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: "6443"
         prometheus.io/scrape: "true"
+        #k8s.v1.cni.cncf.io/networks: "kube-system/cilium-conf"
     spec:
       containers:
       - args:
