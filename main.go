@@ -11,6 +11,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -23,12 +24,12 @@ const (
 	CiliumNodeLabel      = "node-role.kubernetes.io/cilium"
 	CiliumNodeValueLabel = "cilium"
 
+	RolledNodeLabel   = "node-role.kubernetes.io/rolled"
 	MigratedNodeLabel = "node-role.kubernetes.io/migrated"
 
-	CiliumYaml        = "cilium.yaml"
-	MultusYaml        = "multus-daemonset.yaml"
-	KnetStressYaml    = "knet-stress.yaml"
-	NetworkAttachYaml = "net-attach.yaml"
+	CiliumYaml     = "cilium.yaml"
+	MultusYaml     = "multus-daemonset.yaml"
+	KnetStressYaml = "knet-stress.yaml"
 )
 
 var (
@@ -110,19 +111,17 @@ func (m *migration) runMigration() error {
 
 	m.log.Info("Applying resources...")
 	// Create needed resources
+	if err := m.createDaemonSet(KnetStressYaml, "knet-stress", "knet-stress"); err != nil {
+		return err
+	}
 	if err := m.createDaemonSet(CiliumYaml, "kube-system", "cilium"); err != nil {
 		return err
 	}
 	if err := m.createDaemonSet(MultusYaml, "kube-system", "kube-multus-ds-amd64"); err != nil {
 		return err
 	}
-	if err := m.createResource(NetworkAttachYaml, "kube-system", "cilium-conf"); err != nil {
-		return err
-	}
-	if err := m.createDaemonSet(CiliumYaml, "kube-system", "cilium-migrated"); err != nil {
-		return err
-	}
-	if err := m.createDaemonSet(KnetStressYaml, "knet-stress", "knet-stress"); err != nil {
+
+	if err := m.waitAllReady(); err != nil {
 		return err
 	}
 
@@ -133,13 +132,18 @@ func (m *migration) runMigration() error {
 
 	// Danger Zone
 	// Patch all deployments etc.
-	m.log.Info("Adding cilium network attachment to all apps")
-	if err := m.patchAllApps(); err != nil {
+
+	m.log.Info("Rolling all nodes to install multi CNI")
+
+	nodes, err := m.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
 		return err
 	}
 
-	if err := m.waitAllReady(); err != nil {
-		return err
+	for _, node := range nodes.Items {
+		if err := m.rollNode(node.Name); err != nil {
+			return err
+		}
 	}
 
 	// Check knet connectivity
@@ -161,17 +165,17 @@ func (m *migration) runMigration() error {
 func (m *migration) cleanup() error {
 	m.log.Infof("Cleaning up")
 
-	args := []string{"kubectl", "delete", "-A", "--all", "network-attachment-definitions.k8s.cni.cncf.io"}
-	if err := m.runCommand(args...); err != nil {
-		return err
-	}
-
 	err := m.kubeClient.AppsV1().DaemonSets("kube-system").Delete(context.TODO(), "kube-multus-ds-amd64", metav1.DeleteOptions{})
 	if err != nil {
 		return err
 	}
 
 	err = m.kubeClient.AppsV1().DaemonSets("kube-system").Delete(context.TODO(), "canal", metav1.DeleteOptions{})
+	if err != nil {
+		return err
+	}
+
+	err = m.kubeClient.AppsV1().DaemonSets("kube-system").Delete(context.TODO(), "cilium", metav1.DeleteOptions{})
 	if err != nil {
 		return err
 	}
@@ -492,10 +496,12 @@ func (m *migration) setNodeMigratedLabel(nodeName string) error {
 }
 
 func (m *migration) deletePodsOnNode(nodeName string) error {
-	nss, err := m.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	nss, err := m.kubeClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
+
+	toBeDeleted := make(map[*corev1.Pod]struct{})
 
 	for _, ns := range nss.Items {
 		pods, err := m.kubeClient.CoreV1().Pods(ns.Name).List(context.TODO(), metav1.ListOptions{})
@@ -506,12 +512,34 @@ func (m *migration) deletePodsOnNode(nodeName string) error {
 		for _, p := range pods.Items {
 			if p.Spec.NodeName == nodeName {
 				m.log.Debugf("Deleting pod %s on node %s", p.Name, nodeName)
+				toBeDeleted[p.DeepCopy()] = struct{}{}
+
 				err = m.kubeClient.CoreV1().Pods(ns.Name).Delete(context.TODO(), p.Name, metav1.DeleteOptions{})
 				if err != nil {
 					return err
 				}
 			}
 		}
+	}
+
+	// Wait for pods to be deleted
+	for {
+		for p := range toBeDeleted {
+			_, err = m.kubeClient.CoreV1().Pods(p.Namespace).Get(context.TODO(), p.Name, metav1.GetOptions{})
+			if apierrors.IsNotFound(err) {
+				delete(toBeDeleted, p)
+				continue
+			}
+			if err != nil {
+				return err
+			}
+		}
+
+		if len(toBeDeleted) == 0 {
+			break
+		}
+
+		time.Sleep(time.Second)
 	}
 
 	return nil

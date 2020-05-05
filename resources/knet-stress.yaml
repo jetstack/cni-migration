@@ -65,7 +65,55 @@ spec:
         prometheus.io/path: /metrics
         prometheus.io/port: "6443"
         prometheus.io/scrape: "true"
-        #k8s.v1.cni.cncf.io/networks: "kube-system/cilium-conf"
+    spec:
+      containers:
+      - args:
+        - --connection-rate=5s
+        - --endpoint-name=knet-stress
+        - --endpoint-namespace=knet-stress
+        - --instance-id=$POD_NAME
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        image: gcr.io/jetstack-josh/knet-stress:cli
+        imagePullPolicy: Always
+        name: knet-stress
+        ports:
+        - containerPort: 6433
+          protocol: TCP
+      tolerations:
+      - effect: NoSchedule
+        operator: Exists
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - effect: NoExecute
+        operator: Exists
+      - effect: NoExecute
+        key: node-role.kubernetes.io/cilium
+      serviceAccountName: knet-stress
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: knet-stress-2
+  namespace: knet-stress
+  labels:
+    app: knet-stress
+spec:
+  selector:
+    matchLabels:
+      app: knet-stress
+  template:
+    metadata:
+      labels:
+        app: knet-stress
+      annotations:
+        prometheus.io/path: /metrics
+        prometheus.io/port: "6443"
+        prometheus.io/scrape: "true"
     spec:
       containers:
       - args:
