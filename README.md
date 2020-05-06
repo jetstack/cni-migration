@@ -1,5 +1,5 @@
 cni-migration is a CLI tool for migrating a Kubernetes cluster's CNI solution
-from Flannel (canal) to Cilium. The tool works by running both CNIs at the same
+from Flannel (Canal) to Cilium. The tool works by running both CNIs at the same
 time using [multus-cni](https://github.com/intel/multus-cni/). All pods are
 updated to attach a network interface from both CNIs, and then migrate each node
 to running only Cilium. This ensures that all pods are able to communicate to
