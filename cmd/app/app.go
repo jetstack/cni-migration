@@ -64,6 +64,10 @@ func NewRunCmd(ctx context.Context) *cobra.Command {
 			log := logrus.NewEntry(logger)
 			// set log  value to dry run if set
 
+			if o.StepMigrateSingleNode {
+				ctx.Value(type.ContextSingleNodeKey) = "true"
+			}
+
 			client, err := factory.KubernetesClientSet()
 			if err != nil {
 				return fmt.Errorf("failed to build kubernetes client: %s", err)

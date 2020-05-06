@@ -11,6 +11,8 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/klog"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
+
+	"github.com/joshvanl/cni-migration/pkg/types"
 )
 
 func (o Options) AddFlags(fs *pflag.FlagSet) {
@@ -22,6 +24,7 @@ func (o Options) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVarP(&o.StepMigrateAllNodes, "step-migrate-all-nodes", "3", false, "[3] - Migrate all nodes in the cluster, one by one.")
 	fs.BoolVarP(&o.StepCleanUp, "step-clean-up", "4", false, "[4] - Clean up migration resources.")
 	fs.StringVarP(&o.LogLevel, "log-level", "v", "info", "Set logging level [debug|info|warn|error|fatal]")
+	fs.StringVar(&types.ResourcesDirectory, "resource-dir", "./resources", "Set the directory path containing the migration yaml files.")
 }
 
 func AddKubeFlags(cmd *cobra.Command, fs *pflag.FlagSet) cmdutil.Factory {

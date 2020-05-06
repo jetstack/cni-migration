@@ -18,6 +18,8 @@ const (
 	PathCilium     = "cilium.yaml"
 	PathMultus     = "multus-daemonset.yaml"
 	PathKnetStress = "knet-stress.yaml"
+
+	ContextSingleNodeKey = "cni-migration-single-node"
 )
 
 var (
