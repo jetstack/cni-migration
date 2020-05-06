@@ -1,4 +1,4 @@
-package init
+package prepare
 
 import (
 	"context"
@@ -12,18 +12,18 @@ import (
 	"github.com/joshvanl/cni-migration/pkg/util"
 )
 
-var _ types.Step = &Init{}
+var _ types.Step = &Prepare{}
 
-type Init struct {
+type Prepare struct {
 	client  *kubernetes.Clientset
 	log     *logrus.Entry
 	ctx     context.Context
 	factory *util.Factory
 }
 
-func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) *Init {
-	return &Init{
-		log:     log.WithField("step", "1-init"),
+func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) types.Step {
+	return &Prepare{
+		log:     log.WithField("step", "1-prepare"),
 		client:  client,
 		ctx:     ctx,
 		factory: util.New(log, ctx, client),
@@ -34,8 +34,8 @@ func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) *
 // - Nodes have correct labels
 // - The required resources exist
 // - Canal DaemonSet has been patched
-func (i *Init) Ready() (bool, error) {
-	nodes, err := i.client.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+func (p *Prepare) Ready() (bool, error) {
+	nodes, err := p.client.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return false, err
 	}
@@ -46,12 +46,12 @@ func (i *Init) Ready() (bool, error) {
 		}
 	}
 
-	patched, err := i.canalIsPatched()
+	patched, err := p.canalIsPatched()
 	if err != nil || !patched {
 		return false, err
 	}
 
-	requiredResources, err := i.hasRequiredResources()
+	requiredResources, err := p.hasRequiredResources()
 	if err != nil || !requiredResources {
 		return false, err
 	}
@@ -64,17 +64,17 @@ func (i *Init) Ready() (bool, error) {
 // - Node have correct labels
 // - The required resources exist
 // - Canal DaemonSet has been patched
-func (i *Init) Run(dryrun bool) error {
-	m.log.Infof("preparing migration...")
+func (p *Prepare) Run(dryrun bool) error {
+	p.log.Infof("preparing migration...")
 
-	nodes, err := i.client.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	nodes, err := p.client.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
 
 	for _, n := range nodes.Items {
 		if !hasRequiredLabel(n.Labels) {
-			i.log.Infof("updating label on node %s", n.Name)
+			p.log.Infof("updating label on node %s", n.Name)
 
 			if dryrun {
 				continue
@@ -83,60 +83,60 @@ func (i *Init) Run(dryrun bool) error {
 			delete(n.Labels, types.LabelCiliumKey)
 			n.Labels[types.LabelCanalCiliumKey] = types.LabelCanalCiliumValue
 
-			_, err := i.client.CoreV1().Nodes().Update(i.ctx, n.DeepCopy(), metav1.UpdateOptions{})
+			_, err := p.client.CoreV1().Nodes().Update(p.ctx, n.DeepCopy(), metav1.UpdateOptions{})
 			if err != nil {
 				return err
 			}
 		}
 	}
 
-	patched, err := i.canalIsPatched()
+	patched, err := p.canalIsPatched()
 	if err != nil {
 		return err
 	}
 
 	if !patched {
-		i.log.Infof("patching canal DaemonSet with node selector %s=%s",
+		p.log.Infof("patching canal DaemonSet with node selector %s=%s",
 			types.LabelCanalCiliumKey, types.LabelCanalCiliumValue)
 
 		if !dryrun {
-			if err := i.patchCanal(); err != nil {
+			if err := p.patchCanal(); err != nil {
 				return err
 			}
 		}
 	}
 
-	requiredResources, err := i.hasRequiredResources()
+	requiredResources, err := p.hasRequiredResources()
 	if err != nil {
 		return err
 	}
 
 	if !requiredResources {
 		// Create needed resources
-		i.log.Infof("creating knet-stress resources")
+		p.log.Infof("creating knet-stress resources")
 		if !dryrun {
-			if err := i.factory.CreateDaemonSet(types.PathKnetStress, "knet-stress", "knet-stress"); err != nil {
+			if err := p.factory.CreateDaemonSet(types.PathKnetStress, "knet-stress", "knet-stress"); err != nil {
 				return err
 			}
 		}
 
-		i.log.Infof("creating cilium resources")
+		p.log.Infof("creating cilium resources")
 		if !dryrun {
-			if err := i.factory.CreateDaemonSet(types.PathCilium, "kube-system", "cilium"); err != nil {
+			if err := p.factory.CreateDaemonSet(types.PathCilium, "kube-system", "cilium"); err != nil {
 				return err
 			}
 		}
 
-		i.log.Infof("creating multus resources")
+		p.log.Infof("creating multus resources")
 		if !dryrun {
-			if err := i.factory.CreateDaemonSet(types.PathMultus, "kube-system", "kube-multus-ds-amd64"); err != nil {
+			if err := p.factory.CreateDaemonSet(types.PathMultus, "kube-system", "kube-multus-ds-amd64"); err != nil {
 				return err
 			}
 		}
 	}
 
 	if !dryrun {
-		if err := i.factory.WaitAllReady(); err != nil {
+		if err := p.factory.WaitAllReady(); err != nil {
 			return err
 		}
 	}
@@ -146,8 +146,8 @@ func (i *Init) Run(dryrun bool) error {
 	return nil
 }
 
-func (i *Init) patchCanal() error {
-	ds, err := i.client.AppsV1().DaemonSets("kube-system").Get(i.ctx, "canal", metav1.GetOptions{})
+func (p *Prepare) patchCanal() error {
+	ds, err := p.client.AppsV1().DaemonSets("kube-system").Get(p.ctx, "canal", metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func (i *Init) patchCanal() error {
 	}
 	ds.Spec.Template.Spec.NodeSelector[types.LabelCanalCiliumKey] = types.LabelCanalCiliumValue
 
-	_, err = i.client.AppsV1().DaemonSets("kube-system").Update(i.ctx, ds, metav1.UpdateOptions{})
+	_, err = p.client.AppsV1().DaemonSets("kube-system").Update(p.ctx, ds, metav1.UpdateOptions{})
 	if err != nil {
 		return err
 	}
@@ -181,8 +181,8 @@ func hasRequiredLabel(labels map[string]string) bool {
 	return true
 }
 
-func (i *Init) canalIsPatched() (bool, error) {
-	ds, err := i.client.AppsV1().DaemonSets("kube-system").Get(i.ctx, "canal", metav1.GetOptions{})
+func (p *Prepare) canalIsPatched() (bool, error) {
+	ds, err := p.client.AppsV1().DaemonSets("kube-system").Get(p.ctx, "canal", metav1.GetOptions{})
 	if err != nil {
 		return false, err
 	}
@@ -197,9 +197,9 @@ func (i *Init) canalIsPatched() (bool, error) {
 	return true, nil
 }
 
-func (i *Init) hasRequiredResources() (bool, error) {
+func (p *Prepare) hasRequiredResources() (bool, error) {
 	for _, name := range types.DaemonSetNames {
-		_, err := i.client.AppsV1().DaemonSets("kube-system").Get(i.ctx, name, metav1.GetOptions{})
+		_, err := p.client.AppsV1().DaemonSets("kube-system").Get(p.ctx, name, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		}

@@ -1,9 +1,20 @@
 package types
 
+import (
+	"context"
+
+	"github.com/sirupsen/logrus"
+	"k8s.io/client-go/kubernetes"
+)
+
 type Step interface {
 	Ready() (bool, error)
 	Run(dryrun bool) error
 }
+
+type NewFunc func(context.Context, *logrus.Entry, *kubernetes.Clientset) Step
+type ReadyFunc func() (bool, error)
+type RunFunc func(bool) error
 
 const (
 	LabelCanalCiliumKey   = "node-role.kubernetes.io/cilium-canal"

@@ -12,6 +12,10 @@ import (
 	cliflag "k8s.io/component-base/cli/flag"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 
+	"github.com/joshvanl/cni-migration/pkg/cleanup"
+	"github.com/joshvanl/cni-migration/pkg/migrate"
+	"github.com/joshvanl/cni-migration/pkg/prepare"
+	"github.com/joshvanl/cni-migration/pkg/roll"
 	"github.com/joshvanl/cni-migration/pkg/types"
 )
 
@@ -20,7 +24,7 @@ type Options struct {
 	LogLevel string
 
 	StepAll               bool
-	StepInstallCNIs       bool
+	StepPrepare           bool
 	StepRollNodes         bool
 	StepMigrateSingleNode bool
 	StepMigrateAllNodes   bool
@@ -109,6 +113,49 @@ func NewRunCmd(ctx context.Context) *cobra.Command {
 }
 
 func run(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset, o *Options) error {
+	var steps []types.Step
+	for _, f := range []types.NewFunc{
+		prepare.New,
+		roll.New,
+		migrate.New,
+		cleanup.New,
+	} {
+		steps = append(steps, f(ctx, log, client))
+	}
+
+	dryrun := !o.NoDryRun
+
+	if o.StepAll {
+		for _, s := range steps {
+			if err := s.Run(dryrun); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	for i, enabled := range []bool{
+		o.StepPrepare,
+		o.StepRollNodes,
+		(o.StepMigrateSingleNode || o.StepMigrateAllNodes),
+		o.StepCleanUp,
+	} {
+		if enabled {
+			if err := steps[i].Run(dryrun); err != nil {
+				return err
+			}
+		} else {
+			ready, err := steps[i].Ready()
+			if err != nil {
+				return fmt.Errorf("step %d failed: %s", i+1, err)
+			}
+
+			if !ready {
+				return fmt.Errorf("step %d not ready...", i+1)
+			}
+		}
+	}
 
 	return nil
 }

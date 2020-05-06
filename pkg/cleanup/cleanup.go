@@ -21,7 +21,7 @@ type CleanUp struct {
 	factory *util.Factory
 }
 
-func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) *CleanUp {
+func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) types.Step {
 	return &CleanUp{
 		log:     log.WithField("step", "4-cleanup"),
 		client:  client,

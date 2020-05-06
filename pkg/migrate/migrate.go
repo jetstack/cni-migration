@@ -21,7 +21,7 @@ type Migrate struct {
 	factory *util.Factory
 }
 
-func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) *Migrate {
+func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) types.Step {
 	return &Migrate{
 		log:     log.WithField("step", "3-migrate"),
 		client:  client,

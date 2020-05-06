@@ -20,7 +20,7 @@ type Roll struct {
 	factory *util.Factory
 }
 
-func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) *Roll {
+func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) types.Step {
 	return &Roll{
 		log:     log.WithField("step", "2-roll"),
 		client:  client,
