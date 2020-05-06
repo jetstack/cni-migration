@@ -95,9 +95,22 @@ func (f *Factory) DeletePodsOnNode(nodeName string) error {
 func (f *Factory) createResource(yamlFilePath, namespace, name string) error {
 	filePath := filepath.Join(types.ResourcesDirectory, yamlFilePath)
 
-	f.log.Debugf("Applying %s: %s", name, filePath)
+	f.log.Debugf("pplying %s: %s", name, filePath)
 
 	args := []string{"kubectl", "apply", "--namespace", namespace, "-f", filePath}
+	if err := f.RunCommand(args...); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (f *Factory) DeleteResource(yamlFilePath, namespace string) error {
+	filePath := filepath.Join(types.ResourcesDirectory, yamlFilePath)
+
+	f.log.Debugf("deleting %s", filePath)
+
+	args := []string{"kubectl", "delete", "--namespace", namespace, "-f", filePath}
 	if err := f.RunCommand(args...); err != nil {
 		return err
 	}

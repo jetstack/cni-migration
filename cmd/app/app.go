@@ -6,10 +6,13 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"k8s.io/client-go/kubernetes"
 	// Load all auth plugins
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	cliflag "k8s.io/component-base/cli/flag"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
+
+	"github.com/joshvanl/cni-migration/pkg/types"
 )
 
 type Options struct {
@@ -65,7 +68,7 @@ func NewRunCmd(ctx context.Context) *cobra.Command {
 			// set log  value to dry run if set
 
 			if o.StepMigrateSingleNode {
-				ctx.Value(type.ContextSingleNodeKey) = "true"
+				ctx = context.WithValue(ctx, types.ContextSingleNodeKey, "true")
 			}
 
 			client, err := factory.KubernetesClientSet()
@@ -73,7 +76,7 @@ func NewRunCmd(ctx context.Context) *cobra.Command {
 				return fmt.Errorf("failed to build kubernetes client: %s", err)
 			}
 
-			return nil
+			return run(ctx, log, client, o)
 		},
 	}
 
@@ -103,4 +106,9 @@ func NewRunCmd(ctx context.Context) *cobra.Command {
 	}
 
 	return cmd
+}
+
+func run(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset, o *Options) error {
+
+	return nil
 }

@@ -30,4 +30,8 @@ var (
 		"canal", "cilium", "cilium-migrated",
 		"kube-multus", "knet-stress", "knet-stress-2",
 	}
+
+	DaemonSetCleanupNames = []string{
+		"canal", "cilium", "kube-multus",
+	}
 )
