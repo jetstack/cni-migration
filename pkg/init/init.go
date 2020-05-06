@@ -56,6 +56,7 @@ func (i *Init) Ready() (bool, error) {
 		return false, err
 	}
 
+	// TODO: check knet
 	return true, nil
 }
 
@@ -64,6 +65,8 @@ func (i *Init) Ready() (bool, error) {
 // - The required resources exist
 // - Canal DaemonSet has been patched
 func (i *Init) Run(dryrun bool) error {
+	m.log.Infof("preparing migration...")
+
 	nodes, err := i.client.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		return err
@@ -137,6 +140,8 @@ func (i *Init) Run(dryrun bool) error {
 			return err
 		}
 	}
+
+	// TODO: check knet
 
 	return nil
 }

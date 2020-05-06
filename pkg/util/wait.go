@@ -65,7 +65,7 @@ func (f *Factory) waitStatefulSetReady(namespace, name string) error {
 
 func (f *Factory) waitReady(kind, name, namespace string) error {
 	args := []string{"kubectl", "rollout", "status", kind, "--namespace", namespace, name}
-	if err := f.runCommand(args...); err != nil {
+	if err := f.RunCommand(args...); err != nil {
 		return err
 	}
 	return nil

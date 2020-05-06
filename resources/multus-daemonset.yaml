@@ -102,7 +102,7 @@ data:
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: kube-multus-ds-amd64
+  name: kube-multus
   namespace: kube-system
   labels:
     tier: node
