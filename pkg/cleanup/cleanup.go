@@ -64,7 +64,7 @@ func (c *CleanUp) Run(dryrun bool) error {
 
 	c.log.Info("deleting canal DaemonSet")
 	if !dryrun {
-		err := c.client.AppsV1().DaemonSets("kube-system").Delete(context.TODO(), "canal", metav1.DeleteOptions{})
+		err := c.client.AppsV1().DaemonSets("kube-system").Delete(c.ctx, "canal", metav1.DeleteOptions{})
 		if err != nil {
 			return err
 		}
@@ -72,7 +72,7 @@ func (c *CleanUp) Run(dryrun bool) error {
 
 	c.log.Info("deleting cilium DaemonSet")
 	if !dryrun {
-		err := c.client.AppsV1().DaemonSets("kube-system").Delete(context.TODO(), "cilium", metav1.DeleteOptions{})
+		err := c.client.AppsV1().DaemonSets("kube-system").Delete(c.ctx, "cilium", metav1.DeleteOptions{})
 		if err != nil {
 			return err
 		}

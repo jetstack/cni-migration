@@ -43,7 +43,9 @@ func (r *Roll) Ready() (bool, error) {
 		}
 	}
 
-	// TODO: check knet
+	if err := r.factory.CheckKnetStress(); err != nil {
+		return false, err
+	}
 
 	return true, nil
 }
@@ -51,7 +53,9 @@ func (r *Roll) Ready() (bool, error) {
 func (r *Roll) Run(dryrun bool) error {
 	r.log.Info("rolling nodes to install multi CNI...")
 
-	// TODO: check knet
+	if err := r.factory.CheckKnetStress(); err != nil {
+		return err
+	}
 
 	nodes, err := r.client.CoreV1().Nodes().List(r.ctx, metav1.ListOptions{})
 	if err != nil {
@@ -106,7 +110,9 @@ func (r *Roll) node(name string) error {
 		return err
 	}
 
-	// TODO: check knet
+	if err := r.factory.CheckKnetStress(); err != nil {
+		return err
+	}
 
 	node, err = r.client.CoreV1().Nodes().Get(r.ctx, name, metav1.GetOptions{})
 	if err != nil {

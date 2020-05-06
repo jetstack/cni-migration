@@ -44,6 +44,10 @@ func (m *Migrate) Ready() (bool, error) {
 		}
 	}
 
+	if err := m.factory.CheckKnetStress(); err != nil {
+		return false, err
+	}
+
 	return true, nil
 }
 
@@ -102,7 +106,9 @@ func (m *Migrate) node(dryrun bool, nodeName string) error {
 		}
 
 		// Check knet connectivity
-		// TODO: check knet
+		if err := m.factory.CheckKnetStress(); err != nil {
+			return err
+		}
 	}
 
 	// Remove taint on node
@@ -132,7 +138,9 @@ func (m *Migrate) node(dryrun bool, nodeName string) error {
 		}
 	}
 
-	// TODO: check knet
+	if err := m.factory.CheckKnetStress(); err != nil {
+		return err
+	}
 
 	return nil
 }

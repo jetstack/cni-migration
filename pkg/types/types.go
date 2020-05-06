@@ -34,7 +34,6 @@ const (
 )
 
 var (
-	// TODO: set this value
 	ResourcesDirectory = "./resources"
 
 	DaemonSetNames = []string{

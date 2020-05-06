@@ -35,7 +35,7 @@ func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) t
 // - The required resources exist
 // - Canal DaemonSet has been patched
 func (p *Prepare) Ready() (bool, error) {
-	nodes, err := p.client.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	nodes, err := p.client.CoreV1().Nodes().List(p.ctx, metav1.ListOptions{})
 	if err != nil {
 		return false, err
 	}
@@ -56,7 +56,10 @@ func (p *Prepare) Ready() (bool, error) {
 		return false, err
 	}
 
-	// TODO: check knet
+	if err := p.factory.CheckKnetStress(); err != nil {
+		return false, err
+	}
+
 	return true, nil
 }
 
@@ -67,7 +70,7 @@ func (p *Prepare) Ready() (bool, error) {
 func (p *Prepare) Run(dryrun bool) error {
 	p.log.Infof("preparing migration...")
 
-	nodes, err := p.client.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	nodes, err := p.client.CoreV1().Nodes().List(p.ctx, metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -141,7 +144,9 @@ func (p *Prepare) Run(dryrun bool) error {
 		}
 	}
 
-	// TODO: check knet
+	if err := p.factory.CheckKnetStress(); err != nil {
+		return err
+	}
 
 	return nil
 }
