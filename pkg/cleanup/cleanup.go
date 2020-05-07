@@ -22,8 +22,9 @@ type CleanUp struct {
 }
 
 func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) types.Step {
+	log = log.WithField("step", "4-cleanup")
 	return &CleanUp{
-		log:     log.WithField("step", "4-cleanup"),
+		log:     log,
 		client:  client,
 		ctx:     ctx,
 		factory: util.New(log, ctx, client),

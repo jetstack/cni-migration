@@ -57,7 +57,7 @@ func (f *Factory) DeletePodsOnNode(nodeName string) error {
 		}
 
 		for _, p := range pods.Items {
-			if p.Spec.NodeName == nodeName {
+			if p.Spec.NodeName == nodeName && !p.Spec.HostNetwork {
 				f.log.Debugf("deleting pod %s on node %s", p.Name, nodeName)
 				toBeDeleted[p.DeepCopy()] = struct{}{}
 
@@ -95,7 +95,7 @@ func (f *Factory) DeletePodsOnNode(nodeName string) error {
 func (f *Factory) createResource(yamlFilePath, namespace, name string) error {
 	filePath := filepath.Join(types.ResourcesDirectory, yamlFilePath)
 
-	f.log.Debugf("pplying %s: %s", name, filePath)
+	f.log.Debugf("applying %s: %s", name, filePath)
 
 	args := []string{"kubectl", "apply", "--namespace", namespace, "-f", filePath}
 	if err := f.RunCommand(args...); err != nil {

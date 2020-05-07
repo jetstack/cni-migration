@@ -23,8 +23,9 @@ type Migrate struct {
 }
 
 func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) types.Step {
+	log = log.WithField("step", "3-migrate")
 	return &Migrate{
-		log:     log.WithField("step", "3-migrate"),
+		log:     log,
 		client:  client,
 		ctx:     ctx,
 		factory: util.New(log, ctx, client),
@@ -102,7 +103,6 @@ func (m *Migrate) node(dryrun bool, nodeName string) error {
 
 	m.log.Infof("removing pods on node %s", nodeName)
 	if !dryrun {
-		time.Sleep(time.Second * 15)
 
 		if err := m.factory.WaitDaemonSetReady("kube-system", "cilium-migrated"); err != nil {
 			return err
@@ -116,6 +116,8 @@ func (m *Migrate) node(dryrun bool, nodeName string) error {
 		if err := m.factory.WaitAllReady(); err != nil {
 			return err
 		}
+
+		time.Sleep(time.Second * 15)
 
 		// Check knet connectivity
 		if err := m.factory.CheckKnetStress(); err != nil {

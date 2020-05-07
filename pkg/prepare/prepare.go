@@ -22,8 +22,9 @@ type Prepare struct {
 }
 
 func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) types.Step {
+	log = log.WithField("step", "1-prepare")
 	return &Prepare{
-		log:     log.WithField("step", "1-prepare"),
+		log:     log,
 		client:  client,
 		ctx:     ctx,
 		factory: util.New(log, ctx, client),
