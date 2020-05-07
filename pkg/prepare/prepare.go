@@ -56,9 +56,7 @@ func (p *Prepare) Ready() (bool, error) {
 		return false, err
 	}
 
-	if err := p.factory.CheckKnetStress(); err != nil {
-		return false, err
-	}
+	p.log.Info("step 1 ready")
 
 	return true, nil
 }
@@ -115,14 +113,6 @@ func (p *Prepare) Run(dryrun bool) error {
 	}
 
 	if !requiredResources {
-		// Create needed resources
-		p.log.Infof("creating knet-stress resources")
-		if !dryrun {
-			if err := p.factory.CreateDaemonSet(types.PathKnetStress, "knet-stress", "knet-stress"); err != nil {
-				return err
-			}
-		}
-
 		p.log.Infof("creating cilium resources")
 		if !dryrun {
 			if err := p.factory.CreateDaemonSet(types.PathCilium, "kube-system", "cilium"); err != nil {
@@ -132,7 +122,14 @@ func (p *Prepare) Run(dryrun bool) error {
 
 		p.log.Infof("creating multus resources")
 		if !dryrun {
-			if err := p.factory.CreateDaemonSet(types.PathMultus, "kube-system", "kube-multus-ds-amd64"); err != nil {
+			if err := p.factory.CreateDaemonSet(types.PathMultus, "kube-system", "kube-multus"); err != nil {
+				return err
+			}
+		}
+
+		p.log.Infof("creating knet-stress resources")
+		if !dryrun {
+			if err := p.factory.CreateDaemonSet(types.PathKnetStress, "knet-stress", "knet-stress"); err != nil {
 				return err
 			}
 		}
@@ -142,10 +139,10 @@ func (p *Prepare) Run(dryrun bool) error {
 		if err := p.factory.WaitAllReady(); err != nil {
 			return err
 		}
-	}
 
-	if err := p.factory.CheckKnetStress(); err != nil {
-		return err
+		if err := p.factory.CheckKnetStress(); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -203,8 +200,8 @@ func (p *Prepare) canalIsPatched() (bool, error) {
 }
 
 func (p *Prepare) hasRequiredResources() (bool, error) {
-	for _, name := range types.DaemonSetNames {
-		_, err := p.client.AppsV1().DaemonSets("kube-system").Get(p.ctx, name, metav1.GetOptions{})
+	for name, namespace := range types.DaemonSetNames {
+		_, err := p.client.AppsV1().DaemonSets(namespace).Get(p.ctx, name, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		}

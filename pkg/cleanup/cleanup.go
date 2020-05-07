@@ -49,6 +49,8 @@ func (c *CleanUp) Ready() (bool, error) {
 		break
 	}
 
+	c.log.Info("step 4 ready")
+
 	return !found, nil
 }
 

@@ -15,7 +15,7 @@ import (
 	"github.com/joshvanl/cni-migration/pkg/types"
 )
 
-func (o Options) AddFlags(fs *pflag.FlagSet) {
+func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&o.NoDryRun, "no-dry-run", false, "Run the CLI tool _not_ in dry run mode. This will attempt to migrate your cluster.")
 	fs.BoolVar(&o.StepAll, "step-all", false, "Run all steps. Cannot be used in conjunction with other step options.")
 	fs.BoolVarP(&o.StepPrepare, "step-prepare", "1", false, "[1] - install required resource and prepare cluster.")
@@ -23,7 +23,7 @@ func (o Options) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&o.StepMigrateSingleNode, "step-migrate-single-node", false, "[3] - Migrate a single node in the cluster if one is available.")
 	fs.BoolVarP(&o.StepMigrateAllNodes, "step-migrate-all-nodes", "3", false, "[3] - Migrate all nodes in the cluster, one by one.")
 	fs.BoolVarP(&o.StepCleanUp, "step-clean-up", "4", false, "[4] - Clean up migration resources.")
-	fs.StringVarP(&o.LogLevel, "log-level", "v", "info", "Set logging level [debug|info|warn|error|fatal]")
+	fs.StringVarP(&o.LogLevel, "log-level", "v", "debug", "Set logging level [debug|info|warn|error|fatal]")
 	fs.StringVar(&types.ResourcesDirectory, "resource-dir", "./resources", "Set the directory path containing the migration yaml files.")
 }
 
@@ -54,7 +54,7 @@ func (o *Options) Validate() error {
 	if o.StepAll {
 		switch o.StepAll {
 		case o.StepPrepare, o.StepRollNodes, o.StepMigrateSingleNode, o.StepMigrateAllNodes, o.StepCleanUp:
-			return errors.New("no other step flags may be enabled with --all")
+			return errors.New("no other step flags may be enabled with --step-all")
 		}
 	}
 

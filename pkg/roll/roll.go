@@ -43,9 +43,7 @@ func (r *Roll) Ready() (bool, error) {
 		}
 	}
 
-	if err := r.factory.CheckKnetStress(); err != nil {
-		return false, err
-	}
+	r.log.Info("step 2 ready")
 
 	return true, nil
 }
@@ -53,8 +51,10 @@ func (r *Roll) Ready() (bool, error) {
 func (r *Roll) Run(dryrun bool) error {
 	r.log.Info("rolling nodes to install multi CNI...")
 
-	if err := r.factory.CheckKnetStress(); err != nil {
-		return err
+	if !dryrun {
+		if err := r.factory.CheckKnetStress(); err != nil {
+			return err
+		}
 	}
 
 	nodes, err := r.client.CoreV1().Nodes().List(r.ctx, metav1.ListOptions{})
@@ -66,10 +66,8 @@ func (r *Roll) Run(dryrun bool) error {
 		if !hasRequiredLabel(n.Labels) {
 			r.log.Infof("rolling node: %s", n.Name)
 
-			if !dryrun {
-				if err := r.node(n.Name); err != nil {
-					return err
-				}
+			if err := r.node(dryrun, n.Name); err != nil {
+				return err
 			}
 		}
 	}
@@ -77,7 +75,7 @@ func (r *Roll) Run(dryrun bool) error {
 	return nil
 }
 
-func (r *Roll) node(name string) error {
+func (r *Roll) node(dryrun bool, name string) error {
 	r.log.Infof("draining node %s", name)
 
 	node, err := r.client.CoreV1().Nodes().Get(r.ctx, name, metav1.GetOptions{})
@@ -85,33 +83,40 @@ func (r *Roll) node(name string) error {
 		return err
 	}
 
-	args := []string{"kubectl", "drain", "--delete-local-data", "--ignore-daemonsets", name}
-	if err := r.factory.RunCommand(args...); err != nil {
-		return err
-	}
+	r.log.Infof("Draining node %s", name)
+	if !dryrun {
+		args := []string{"kubectl", "drain", "--delete-local-data", "--ignore-daemonsets", name}
+		if err := r.factory.RunCommand(args...); err != nil {
+			return err
+		}
 
-	if err := r.factory.WaitAllReady(); err != nil {
-		return err
+		if err := r.factory.WaitAllReady(); err != nil {
+			return err
+		}
 	}
 
 	// Delete all pods on that node
-	r.log.Infof("%s Deleting all pods on node", name)
-	if err := r.factory.DeletePodsOnNode(name); err != nil {
-		return err
+	r.log.Infof("Deleting all pods on node %s", name)
+	if !dryrun {
+		if err := r.factory.DeletePodsOnNode(name); err != nil {
+			return err
+		}
 	}
 
-	r.log.Infof("%s Uncordoning node", name)
-	args = []string{"kubectl", "uncordon", name}
-	if err := r.factory.RunCommand(args...); err != nil {
-		return err
-	}
+	r.log.Infof("Uncordoning node %s", name)
+	if !dryrun {
+		args := []string{"kubectl", "uncordon", name}
+		if err := r.factory.RunCommand(args...); err != nil {
+			return err
+		}
 
-	if err := r.factory.WaitAllReady(); err != nil {
-		return err
-	}
+		if err := r.factory.WaitAllReady(); err != nil {
+			return err
+		}
 
-	if err := r.factory.CheckKnetStress(); err != nil {
-		return err
+		if err := r.factory.CheckKnetStress(); err != nil {
+			return err
+		}
 	}
 
 	node, err = r.client.CoreV1().Nodes().Get(r.ctx, name, metav1.GetOptions{})
@@ -119,14 +124,17 @@ func (r *Roll) node(name string) error {
 		return err
 	}
 
-	if node.Labels == nil {
-		node.Labels = make(map[string]string)
-	}
-	node.Labels[types.LabelRolledKey] = "true"
+	r.log.Infof("Adding rolled label to node %s", name)
+	if !dryrun {
+		if node.Labels == nil {
+			node.Labels = make(map[string]string)
+		}
+		node.Labels[types.LabelRolledKey] = "true"
 
-	_, err = r.client.CoreV1().Nodes().Update(r.ctx, node, metav1.UpdateOptions{})
-	if err != nil {
-		return err
+		_, err = r.client.CoreV1().Nodes().Update(r.ctx, node, metav1.UpdateOptions{})
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

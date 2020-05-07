@@ -3,10 +3,12 @@ package app
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/kubernetes"
+
 	// Load all auth plugins
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	cliflag "k8s.io/component-base/cli/flag"
@@ -37,13 +39,13 @@ const (
   steps. All previous steps must be successful in order to run further steps.`
 	examples = `
   # Execute a dry run of a full migration
-  cni-migration --all
+  cni-migration --step-all
 
   # Perform a migration only the first 2 steps
   cni-migration --no-dry-run -1 -2
 
   # Perform a full live migration
-  cni-migration --no-dry-run --all`
+  cni-migration --no-dry-run --step-all`
 )
 
 func NewRunCmd(ctx context.Context) *cobra.Command {
@@ -80,7 +82,12 @@ func NewRunCmd(ctx context.Context) *cobra.Command {
 				return fmt.Errorf("failed to build kubernetes client: %s", err)
 			}
 
-			return run(ctx, log, client, o)
+			if err := run(ctx, log, client, o); err != nil {
+				log.Error(err)
+				os.Exit(1)
+			}
+
+			return nil
 		},
 	}
 
@@ -104,8 +111,7 @@ func NewRunCmd(ctx context.Context) *cobra.Command {
 	factory = AddKubeFlags(cmd, nfs.FlagSet("Client"))
 
 	fs := cmd.Flags()
-	for n, f := range nfs.FlagSets {
-		fmt.Printf("%s\n", n)
+	for _, f := range nfs.FlagSets {
 		fs.AddFlagSet(f)
 	}
 
@@ -113,6 +119,12 @@ func NewRunCmd(ctx context.Context) *cobra.Command {
 }
 
 func run(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset, o *Options) error {
+	dryrun := !o.NoDryRun
+
+	if dryrun {
+		log = log.WithField("dry-run", "true")
+	}
+
 	var steps []types.Step
 	for _, f := range []types.NewFunc{
 		prepare.New,
@@ -122,8 +134,6 @@ func run(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset, o
 	} {
 		steps = append(steps, f(ctx, log, client))
 	}
-
-	dryrun := !o.NoDryRun
 
 	if o.StepAll {
 		for _, s := range steps {
@@ -135,12 +145,29 @@ func run(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset, o
 		return nil
 	}
 
-	for i, enabled := range []bool{
+	stepBool := []bool{
 		o.StepPrepare,
 		o.StepRollNodes,
 		(o.StepMigrateSingleNode || o.StepMigrateAllNodes),
 		o.StepCleanUp,
-	} {
+	}
+
+	maxStep := -1
+	for i, b := range stepBool {
+		if b {
+			maxStep = i
+		}
+	}
+
+	if maxStep == -1 {
+		log.Info("no steps specified")
+	}
+
+	for i, enabled := range stepBool {
+		if i > maxStep {
+			break
+		}
+
 		if enabled {
 			if err := steps[i].Run(dryrun); err != nil {
 				return err

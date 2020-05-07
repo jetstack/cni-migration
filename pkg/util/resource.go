@@ -35,7 +35,7 @@ func (f *Factory) CreateDaemonSet(yamlFilePath, namespace, name string) error {
 		return err
 	}
 
-	if err := f.waitDaemonSetReady(namespace, name); err != nil {
+	if err := f.WaitDaemonSetReady(namespace, name); err != nil {
 		return err
 	}
 

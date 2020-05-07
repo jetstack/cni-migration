@@ -36,9 +36,13 @@ const (
 var (
 	ResourcesDirectory = "./resources"
 
-	DaemonSetNames = []string{
-		"canal", "cilium", "cilium-migrated",
-		"kube-multus", "knet-stress", "knet-stress-2",
+	DaemonSetNames = map[string]string{
+		"canal":           "kube-system",
+		"cilium":          "kube-system",
+		"cilium-migrated": "kube-system",
+		"kube-multus":     "kube-system",
+		"knet-stress":     "knet-stress",
+		"knet-stress-2":   "knet-stress",
 	}
 
 	DaemonSetCleanupNames = []string{

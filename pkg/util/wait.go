@@ -28,7 +28,7 @@ func (f *Factory) WaitAllReady() error {
 		}
 
 		for _, ds := range dss.Items {
-			if err := f.waitDaemonSetReady(ns.Name, ds.Name); err != nil {
+			if err := f.WaitDaemonSetReady(ns.Name, ds.Name); err != nil {
 				return err
 			}
 		}
@@ -54,7 +54,7 @@ func (f *Factory) waitDeploymentReady(namespace, name string) error {
 }
 
 // waitDaemonSetReadynamespace will wait for a all pods in a DaemonSet to become ready
-func (f *Factory) waitDaemonSetReady(namespace, name string) error {
+func (f *Factory) WaitDaemonSetReady(namespace, name string) error {
 	return f.waitReady("daemonset", name, namespace)
 }
 

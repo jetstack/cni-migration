@@ -10,7 +10,7 @@ import (
 func (f *Factory) CheckKnetStress() error {
 	f.log.Info("checking knet-stress connectivity...")
 
-	if err := f.waitDaemonSetReady("knet-stress", "knet-stress"); err != nil {
+	if err := f.WaitDaemonSetReady("knet-stress", "knet-stress"); err != nil {
 		return err
 	}
 

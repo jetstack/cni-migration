@@ -2,6 +2,7 @@ package migrate
 
 import (
 	"context"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -44,9 +45,7 @@ func (m *Migrate) Ready() (bool, error) {
 		}
 	}
 
-	if err := m.factory.CheckKnetStress(); err != nil {
-		return false, err
-	}
+	m.log.Info("step 3 ready")
 
 	return true, nil
 }
@@ -75,9 +74,13 @@ func (m *Migrate) Run(dryrun bool) error {
 }
 
 func (m *Migrate) node(dryrun bool, nodeName string) error {
-	m.log.Infof("%s Draining node", nodeName)
+	m.log.Infof("Draining node %s", nodeName)
 
 	if !dryrun {
+		if err := m.factory.CheckKnetStress(); err != nil {
+			return err
+		}
+
 		args := []string{"kubectl", "drain", "--delete-local-data", "--ignore-daemonsets", nodeName}
 		if err := m.factory.RunCommand(args...); err != nil {
 			return err
@@ -90,9 +93,18 @@ func (m *Migrate) node(dryrun bool, nodeName string) error {
 	}
 
 	// Add taint on node
-	m.log.Infof("%s Adding %s=%s:NoExecute taint", nodeName, types.LabelCiliumKey, types.LabelCiliumValue)
+	m.log.Infof("Adding %s=%s:NoExecute taint to node %s ", types.LabelCiliumKey, types.LabelCiliumValue, nodeName)
 	if !dryrun {
 		if err := m.addCiliumTaint(nodeName); err != nil {
+			return err
+		}
+	}
+
+	m.log.Infof("removing pods on node %s", nodeName)
+	if !dryrun {
+		time.Sleep(time.Second * 15)
+
+		if err := m.factory.WaitDaemonSetReady("kube-system", "cilium-migrated"); err != nil {
 			return err
 		}
 
@@ -112,14 +124,14 @@ func (m *Migrate) node(dryrun bool, nodeName string) error {
 	}
 
 	// Remove taint on node
-	m.log.Infof("%s Removing %s=%s:NoExecute taint", nodeName, types.LabelCiliumKey, types.LabelCiliumValue)
+	m.log.Infof("removing %s=%s:NoExecute taint on node %s", types.LabelCiliumKey, types.LabelCiliumValue, nodeName)
 	if !dryrun {
 		if err := m.deleteCiliumTaint(nodeName); err != nil {
 			return err
 		}
 	}
 
-	m.log.Infof("%s Uncordoning node", nodeName)
+	m.log.Infof("uncordoning node %s", nodeName)
 	if !dryrun {
 		args := []string{"kubectl", "uncordon", nodeName}
 		if err := m.factory.RunCommand(args...); err != nil {
@@ -131,15 +143,15 @@ func (m *Migrate) node(dryrun bool, nodeName string) error {
 		}
 	}
 
-	m.log.Infof("%s Adding label %s=true", nodeName, types.LabelMigratedKey)
+	m.log.Infof("adding label %s=true to node %s", types.LabelMigratedKey, nodeName)
 	if !dryrun {
 		if err := m.setNodeMigratedLabel(nodeName); err != nil {
 			return err
 		}
-	}
 
-	if err := m.factory.CheckKnetStress(); err != nil {
-		return err
+		if err := m.factory.CheckKnetStress(); err != nil {
+			return err
+		}
 	}
 
 	return nil
