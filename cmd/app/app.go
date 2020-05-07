@@ -161,6 +161,7 @@ func run(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset, o
 
 	if maxStep == -1 {
 		log.Info("no steps specified")
+		return nil
 	}
 
 	for i, enabled := range stepBool {
@@ -183,6 +184,8 @@ func run(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset, o
 			}
 		}
 	}
+
+	log.Info("steps successful.")
 
 	return nil
 }
