@@ -18,8 +18,8 @@ import (
 func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&o.NoDryRun, "no-dry-run", false, "Run the CLI tool _not_ in dry run mode. This will attempt to migrate your cluster.")
 	fs.BoolVar(&o.StepAll, "step-all", false, "Run all steps. Cannot be used in conjunction with other step options.")
-	fs.BoolVarP(&o.StepPrepare, "step-prepare", "1", false, "[1] - install required resource and prepare cluster.")
-	fs.BoolVarP(&o.StepRollNodes, "step-roll-nodes", "2", false, "[2] - roll all nodes on the cluster to install both CNIs to workloads.")
+	fs.BoolVarP(&o.StepPrepare, "step-prepare", "1", false, "[1] - Install required resource and prepare cluster.")
+	fs.BoolVarP(&o.StepRollNodes, "step-roll-nodes", "2", false, "[2] - Roll all nodes on the cluster to install both CNIs to workloads.")
 	fs.BoolVar(&o.StepMigrateSingleNode, "step-migrate-single-node", false, "[3] - Migrate a single node in the cluster if one is available.")
 	fs.BoolVarP(&o.StepMigrateAllNodes, "step-migrate-all-nodes", "3", false, "[3] - Migrate all nodes in the cluster, one by one.")
 	fs.BoolVarP(&o.StepCleanUp, "step-clean-up", "4", false, "[4] - Clean up migration resources.")
