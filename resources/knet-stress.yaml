@@ -2,6 +2,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: knet-stress
+  #labels:
+    #istio-injection: enabled
 ---
 apiVersion: v1
 kind: Service
@@ -71,9 +73,10 @@ spec:
         - --connection-rate=5s
         - --endpoint-name=knet-stress
         - --endpoint-namespace=knet-stress
-        - --instance-id=$POD_NAME
+          #- --serving-address=127.0.0.1
+        - --serving-address=0.0.0.0
         env:
-        - name: POD_NAME
+        - name: KNET_STRESS_INSTANCE_ID
           valueFrom:
             fieldRef:
               apiVersion: v1
@@ -120,9 +123,10 @@ spec:
         - --connection-rate=5s
         - --endpoint-name=knet-stress
         - --endpoint-namespace=knet-stress
-        - --instance-id=$POD_NAME
+          #- --serving-address=127.0.0.1
+        - --serving-address=0.0.0.0
         env:
-        - name: POD_NAME
+        - name: KNET_STRESS_INSTANCE_ID
           valueFrom:
             fieldRef:
               apiVersion: v1
