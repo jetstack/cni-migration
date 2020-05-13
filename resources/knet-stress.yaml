@@ -10,6 +10,8 @@ kind: Service
 metadata:
   name: knet-stress
   namespace: knet-stress
+  labels:
+    app: knet-stress
 spec:
   selector:
     app: knet-stress
