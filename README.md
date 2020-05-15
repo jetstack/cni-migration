@@ -30,7 +30,7 @@ proves a bi-directional network connectivity across cluster.
   selector`node-role.kubernetes/cilium-canal=cilium-canal`. This has a static
   config that uses the Canal CNI config for the main Pod IP network inteterface,
   and the Cilium as an extra network interface attached. The resulting CNI
-  config is written to `00-multus.config`. This CNI config will be chosen by the
+  config is written to `00-multus.conflist`. This CNI config will be chosen by the
   Kubelet until the node has been migrated.
 
 2. This step ensures that all workloads on the cluster are running with network
