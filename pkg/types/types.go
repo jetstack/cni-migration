@@ -36,6 +36,10 @@ const (
 var (
 	ResourcesDirectory = "./resources"
 
+	DaemonSetPreflightNames = map[string]string{
+		"knet-stress": "knet-stress",
+	}
+
 	DaemonSetNames = map[string]string{
 		"canal":           "kube-system",
 		"cilium":          "kube-system",

@@ -16,6 +16,7 @@ import (
 
 	"github.com/joshvanl/cni-migration/pkg/cleanup"
 	"github.com/joshvanl/cni-migration/pkg/migrate"
+	"github.com/joshvanl/cni-migration/pkg/preflight"
 	"github.com/joshvanl/cni-migration/pkg/prepare"
 	"github.com/joshvanl/cni-migration/pkg/roll"
 	"github.com/joshvanl/cni-migration/pkg/types"
@@ -26,6 +27,7 @@ type Options struct {
 	LogLevel string
 
 	StepAll               bool
+	StepPreflight         bool
 	StepPrepare           bool
 	StepRollNodes         bool
 	StepMigrateSingleNode bool
@@ -127,6 +129,7 @@ func run(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset, o
 
 	var steps []types.Step
 	for _, f := range []types.NewFunc{
+		preflight.New,
 		prepare.New,
 		roll.New,
 		migrate.New,
@@ -146,6 +149,7 @@ func run(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset, o
 	}
 
 	stepBool := []bool{
+		o.StepPreflight,
 		o.StepPrepare,
 		o.StepRollNodes,
 		(o.StepMigrateSingleNode || o.StepMigrateAllNodes),
@@ -176,11 +180,11 @@ func run(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset, o
 		} else {
 			ready, err := steps[i].Ready()
 			if err != nil {
-				return fmt.Errorf("step %d failed: %s", i+1, err)
+				return fmt.Errorf("step %d failed: %s", i, err)
 			}
 
 			if !ready {
-				return fmt.Errorf("step %d not ready...", i+1)
+				return fmt.Errorf("step %d not ready...", i)
 			}
 		}
 	}

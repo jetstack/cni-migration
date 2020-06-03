@@ -18,6 +18,7 @@ import (
 func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&o.NoDryRun, "no-dry-run", false, "Run the CLI tool _not_ in dry run mode. This will attempt to migrate your cluster.")
 	fs.BoolVar(&o.StepAll, "step-all", false, "Run all steps. Cannot be used in conjunction with other step options.")
+	fs.BoolVarP(&o.StepPreflight, "step-preflight", "0", false, "[0] - Install knet-stress and ensure connectivity.")
 	fs.BoolVarP(&o.StepPrepare, "step-prepare", "1", false, "[1] - Install required resource and prepare cluster.")
 	fs.BoolVarP(&o.StepRollNodes, "step-roll-nodes", "2", false, "[2] - Roll all nodes on the cluster to install both CNIs to workloads.")
 	fs.BoolVar(&o.StepMigrateSingleNode, "step-migrate-single-node", false, "[3] - Migrate a single node in the cluster if one is available.")
@@ -53,7 +54,7 @@ func (o *Options) Validate() error {
 
 	if o.StepAll {
 		switch o.StepAll {
-		case o.StepPrepare, o.StepRollNodes, o.StepMigrateSingleNode, o.StepMigrateAllNodes, o.StepCleanUp:
+		case o.StepPreflight, o.StepPrepare, o.StepRollNodes, o.StepMigrateSingleNode, o.StepMigrateAllNodes, o.StepCleanUp:
 			return errors.New("no other step flags may be enabled with --step-all")
 		}
 	}
