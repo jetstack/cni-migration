@@ -31,13 +31,13 @@ type Options struct {
 	LogLevel   string
 	ConfigPath string
 
-	StepAll               bool
-	StepPreflight         bool
-	StepPrepare           bool
-	StepRollNodes         bool
-	StepMigrateSingleNode bool
-	StepMigrateAllNodes   bool
-	StepCleanUp           bool
+	StepAll             bool
+	StepPreflight       bool
+	StepPrepare         bool
+	StepRollNodes       bool
+	StepMigrateNode     string
+	StepMigrateAllNodes bool
+	StepCleanUp         bool
 }
 
 const (
@@ -75,8 +75,8 @@ func NewRunCmd(ctx context.Context) *cobra.Command {
 				return fmt.Errorf("failed to parse --log-level: %s", err)
 			}
 
-			if o.StepMigrateSingleNode {
-				ctx = context.WithValue(ctx, migrate.ContextSingleNodeKey, "true")
+			if len(o.StepMigrateNode) > 0 {
+				ctx = context.WithValue(ctx, migrate.ContextNodeKey, o.StepMigrateNode)
 			}
 
 			config, err := config.New(o.ConfigPath, lvl, factory)
@@ -152,7 +152,7 @@ func run(ctx context.Context, config *config.Config, o *Options) error {
 		o.StepPreflight,
 		o.StepPrepare,
 		o.StepRollNodes,
-		(o.StepMigrateSingleNode || o.StepMigrateAllNodes),
+		(len(o.StepMigrateNode) > 0 || o.StepMigrateAllNodes),
 		o.StepCleanUp,
 	}
 

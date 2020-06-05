@@ -19,7 +19,7 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVarP(&o.StepPreflight, "step-preflight", "0", false, "[0] - Install knet-stress and ensure connectivity.")
 	fs.BoolVarP(&o.StepPrepare, "step-prepare", "1", false, "[1] - Install required resource and prepare cluster.")
 	fs.BoolVarP(&o.StepRollNodes, "step-roll-nodes", "2", false, "[2] - Roll all nodes on the cluster to install both CNIs to workloads.")
-	fs.BoolVar(&o.StepMigrateSingleNode, "step-migrate-single-node", false, "[3] - Migrate a single node in the cluster if one is available.")
+	fs.StringVar(&o.StepMigrateNode, "step-migrate-node", "", "[3] - Migrate a single node in the cluster by node name.")
 	fs.BoolVarP(&o.StepMigrateAllNodes, "step-migrate-all-nodes", "3", false, "[3] - Migrate all nodes in the cluster, one by one.")
 	fs.BoolVarP(&o.StepCleanUp, "step-clean-up", "4", false, "[4] - Clean up migration resources.")
 	fs.StringVarP(&o.LogLevel, "log-level", "v", "debug", "Set logging level [debug|info|warn|error|fatal]")
@@ -46,13 +46,13 @@ func AddKubeFlags(cmd *cobra.Command, fs *pflag.FlagSet) cmdutil.Factory {
 }
 
 func (o *Options) Validate() error {
-	if o.StepMigrateAllNodes && o.StepMigrateSingleNode {
-		return errors.New("cannot enable both --step-migrate-all-nodes, as well as --step-migrate-single-node")
+	if o.StepMigrateAllNodes && len(o.StepMigrateNode) > 0 {
+		return errors.New("cannot enable both --step-migrate-all-nodes, as well as --step-migrate-node")
 	}
 
 	if o.StepAll {
 		switch o.StepAll {
-		case o.StepPreflight, o.StepPrepare, o.StepRollNodes, o.StepMigrateSingleNode, o.StepMigrateAllNodes, o.StepCleanUp:
+		case o.StepPreflight, o.StepPrepare, o.StepRollNodes, len(o.StepMigrateNode) > 0, o.StepMigrateAllNodes, o.StepCleanUp:
 			return errors.New("no other step flags may be enabled with --step-all")
 		}
 	}

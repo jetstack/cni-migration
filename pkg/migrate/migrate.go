@@ -2,6 +2,7 @@ package migrate
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -15,7 +16,7 @@ import (
 )
 
 const (
-	ContextSingleNodeKey = "cni-migration-single-node"
+	ContextNodeKey = "cni-migration-node"
 )
 
 var _ pkg.Step = &Migrate{}
@@ -60,6 +61,22 @@ func (m *Migrate) Ready() (bool, error) {
 }
 
 func (m *Migrate) Run(dryrun bool) error {
+
+	if v := m.ctx.Value(ContextNodeKey); v != nil {
+		nodeName, ok := v.(string)
+		if !ok {
+			return fmt.Errorf("failed to get node name from context: %#+v", v)
+		}
+
+		m.log.Infof("migrating node %s ...", nodeName)
+
+		if err := m.node(dryrun, nodeName); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
 	m.log.Info("migrating nodes...")
 
 	nodes, err := m.client.CoreV1().Nodes().List(m.ctx, metav1.ListOptions{})
@@ -71,10 +88,6 @@ func (m *Migrate) Run(dryrun bool) error {
 		if !m.hasRequiredLabel(n.Labels) {
 			if err := m.node(dryrun, n.Name); err != nil {
 				return err
-			}
-
-			if v := m.ctx.Value(ContextSingleNodeKey); v == "true" {
-				break
 			}
 		}
 	}
