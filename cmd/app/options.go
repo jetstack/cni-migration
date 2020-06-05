@@ -19,9 +19,10 @@ func (o *Options) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVarP(&o.StepPreflight, "step-preflight", "0", false, "[0] - Install knet-stress and ensure connectivity.")
 	fs.BoolVarP(&o.StepPrepare, "step-prepare", "1", false, "[1] - Install required resource and prepare cluster.")
 	fs.BoolVarP(&o.StepRollNodes, "step-roll-nodes", "2", false, "[2] - Roll all nodes on the cluster to install both CNIs to workloads.")
-	fs.StringVar(&o.StepMigrateNode, "step-migrate-node", "", "[3] - Migrate a single node in the cluster by node name.")
-	fs.BoolVarP(&o.StepMigrateAllNodes, "step-migrate-all-nodes", "3", false, "[3] - Migrate all nodes in the cluster, one by one.")
-	fs.BoolVarP(&o.StepCleanUp, "step-clean-up", "4", false, "[4] - Clean up migration resources.")
+	fs.BoolVarP(&o.StepChangeCNIPriority, "step-change-cni-priority", "3", false, "[3] - Change the CNI priority to Cilium.")
+	fs.StringVar(&o.StepMigrateNode, "step-migrate-node", "", "[4] - Migrate a single node in the cluster by node name.")
+	fs.BoolVarP(&o.StepMigrateAllNodes, "step-migrate-all-nodes", "4", false, "[4] - Migrate all nodes in the cluster, one by one.")
+	fs.BoolVarP(&o.StepCleanUp, "step-clean-up", "5", false, "[5] - Clean up migration resources.")
 	fs.StringVarP(&o.LogLevel, "log-level", "v", "debug", "Set logging level [debug|info|warn|error|fatal]")
 	fs.StringVarP(&o.ConfigPath, "config", "c", "config.yaml", "File path to the config path.")
 }

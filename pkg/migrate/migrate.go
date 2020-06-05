@@ -3,7 +3,6 @@ package migrate
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -31,7 +30,7 @@ type Migrate struct {
 }
 
 func New(ctx context.Context, config *config.Config) pkg.Step {
-	log := config.Log.WithField("step", "3-migrate")
+	log := config.Log.WithField("step", "4-migrate")
 	return &Migrate{
 		log:     log,
 		ctx:     ctx,
@@ -55,7 +54,7 @@ func (m *Migrate) Ready() (bool, error) {
 		}
 	}
 
-	m.log.Info("step 3 ready")
+	m.log.Info("step 4 ready")
 
 	return true, nil
 }
@@ -138,8 +137,6 @@ func (m *Migrate) node(dryrun bool, nodeName string) error {
 		if err := m.factory.WaitAllReady(m.config.WatchedResources); err != nil {
 			return err
 		}
-
-		time.Sleep(time.Second * 15)
 
 		// Check knet connectivity
 		if err := m.factory.CheckKnetStress(); err != nil {
@@ -228,7 +225,7 @@ func (m *Migrate) addCiliumTaint(nodeName string) error {
 	}
 
 	// Change label of node
-	delete(node.Labels, m.config.Labels.CiliumCanal)
+	delete(node.Labels, m.config.Labels.CanalCilium)
 	node.Labels[m.config.Labels.Cilium] = m.config.Labels.Value
 
 	node, err = m.client.CoreV1().Nodes().Update(m.ctx, node, metav1.UpdateOptions{})
@@ -246,7 +243,7 @@ func (m *Migrate) setNodeMigratedLabel(nodeName string) error {
 	}
 
 	// Set migrated label
-	delete(node.Labels, m.config.Labels.CiliumCanal)
+	delete(node.Labels, m.config.Labels.CanalCilium)
 	node.Labels[m.config.Labels.Migrated] = m.config.Labels.Value
 
 	_, err = m.client.CoreV1().Nodes().Update(m.ctx, node, metav1.UpdateOptions{})

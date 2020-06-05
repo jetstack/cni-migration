@@ -24,7 +24,7 @@ type CleanUp struct {
 }
 
 func New(ctx context.Context, config *config.Config) pkg.Step {
-	log := config.Log.WithField("step", "4-cleanup")
+	log := config.Log.WithField("step", "5-cleanup")
 	return &CleanUp{
 		log:     log,
 		ctx:     ctx,
@@ -42,7 +42,7 @@ func (c *CleanUp) Ready() (bool, error) {
 		return !cleanUpResources, err
 	}
 
-	c.log.Info("step 4 ready")
+	c.log.Info("step 5 ready")
 
 	return true, nil
 }

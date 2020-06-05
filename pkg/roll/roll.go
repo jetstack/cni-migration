@@ -74,6 +74,7 @@ func (r *Roll) Run(dryrun bool) error {
 			if err := r.node(dryrun, n.Name); err != nil {
 				return err
 			}
+
 		}
 	}
 
@@ -81,50 +82,11 @@ func (r *Roll) Run(dryrun bool) error {
 }
 
 func (r *Roll) node(dryrun bool, name string) error {
-	r.log.Infof("draining node %s", name)
-
-	node, err := r.client.CoreV1().Nodes().Get(r.ctx, name, metav1.GetOptions{})
-	if err != nil {
+	if err := r.factory.RollNode(dryrun, name, r.config.WatchedResources); err != nil {
 		return err
 	}
 
-	r.log.Infof("Draining node %s", name)
-	if !dryrun {
-		args := []string{"kubectl", "drain", "--delete-local-data", "--ignore-daemonsets", name}
-		if err := r.factory.RunCommand(args...); err != nil {
-			return err
-		}
-
-		if err := r.factory.WaitAllReady(r.config.WatchedResources); err != nil {
-			return err
-		}
-	}
-
-	// Delete all pods on that node
-	r.log.Infof("Deleting all pods on node %s", name)
-	if !dryrun {
-		if err := r.factory.DeletePodsOnNode(name); err != nil {
-			return err
-		}
-	}
-
-	r.log.Infof("Uncordoning node %s", name)
-	if !dryrun {
-		args := []string{"kubectl", "uncordon", name}
-		if err := r.factory.RunCommand(args...); err != nil {
-			return err
-		}
-
-		if err := r.factory.WaitAllReady(r.config.WatchedResources); err != nil {
-			return err
-		}
-
-		if err := r.factory.CheckKnetStress(); err != nil {
-			return err
-		}
-	}
-
-	node, err = r.client.CoreV1().Nodes().Get(r.ctx, name, metav1.GetOptions{})
+	node, err := r.client.CoreV1().Nodes().Get(r.ctx, name, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}

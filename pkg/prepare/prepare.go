@@ -86,7 +86,10 @@ func (p *Prepare) Run(dryrun bool) error {
 			}
 
 			delete(n.Labels, p.config.Labels.Cilium)
-			n.Labels[p.config.Labels.CiliumCanal] = p.config.Labels.Value
+			delete(n.Labels, p.config.Labels.CNIPriorityCilium)
+
+			n.Labels[p.config.Labels.CanalCilium] = p.config.Labels.Value
+			n.Labels[p.config.Labels.CNIPriorityCanal] = p.config.Labels.Value
 
 			_, err := p.client.CoreV1().Nodes().Update(p.ctx, n.DeepCopy(), metav1.UpdateOptions{})
 			if err != nil {
@@ -102,7 +105,7 @@ func (p *Prepare) Run(dryrun bool) error {
 
 	if !patched {
 		p.log.Infof("patching canal DaemonSet with node selector %s=%s",
-			p.config.Labels.CiliumCanal, p.config.Labels.Value)
+			p.config.Labels.CanalCilium, p.config.Labels.Value)
 
 		if !dryrun {
 			if err := p.patchCanal(); err != nil {
@@ -126,7 +129,7 @@ func (p *Prepare) Run(dryrun bool) error {
 
 		p.log.Infof("creating multus resources")
 		if !dryrun {
-			if err := p.factory.CreateDaemonSet(p.config.Paths.Multus, "kube-system", "kube-multus"); err != nil {
+			if err := p.factory.CreateDaemonSet(p.config.Paths.Multus, "kube-system", "kube-multus-canal"); err != nil {
 				return err
 			}
 		}
@@ -154,7 +157,7 @@ func (p *Prepare) patchCanal() error {
 	if ds.Spec.Template.Spec.NodeSelector == nil {
 		ds.Spec.Template.Spec.NodeSelector = make(map[string]string)
 	}
-	ds.Spec.Template.Spec.NodeSelector[p.config.Labels.CiliumCanal] = p.config.Labels.Value
+	ds.Spec.Template.Spec.NodeSelector[p.config.Labels.CanalCilium] = p.config.Labels.Value
 
 	_, err = p.client.AppsV1().DaemonSets("kube-system").Update(p.ctx, ds, metav1.UpdateOptions{})
 	if err != nil {
@@ -169,11 +172,17 @@ func (p *Prepare) hasRequiredLabel(labels map[string]string) bool {
 		return false
 	}
 
-	_, cclOK := labels[p.config.Labels.CiliumCanal]
+	_, cclOK := labels[p.config.Labels.CanalCilium]
 	_, clOK := labels[p.config.Labels.Cilium]
+
+	_, prioCan := labels[p.config.Labels.CNIPriorityCanal]
+	_, prioCil := labels[p.config.Labels.CNIPriorityCilium]
 
 	// If both true, or both false, does not have correct labels
 	if cclOK == clOK {
+		return false
+	}
+	if prioCan == prioCil {
 		return false
 	}
 
@@ -189,7 +198,7 @@ func (p *Prepare) canalIsPatched() (bool, error) {
 	if ds.Spec.Template.Spec.NodeSelector == nil {
 		return false, nil
 	}
-	if v, ok := ds.Spec.Template.Spec.NodeSelector[p.config.Labels.CiliumCanal]; !ok || v != p.config.Labels.Value {
+	if v, ok := ds.Spec.Template.Spec.NodeSelector[p.config.Labels.CanalCilium]; !ok || v != p.config.Labels.Value {
 		return false, nil
 	}
 

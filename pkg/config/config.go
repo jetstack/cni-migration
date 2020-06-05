@@ -11,10 +11,13 @@ import (
 )
 
 type Labels struct {
-	CiliumCanal string `yaml:"cilium-canal"`
-	Cilium      string `yaml:"cilium"`
-	Rolled      string `yaml:"rolled"`
-	Migrated    string `yaml:"migrated"`
+	CanalCilium       string `yaml:"canal-cilium"`
+	Rolled            string `yaml:"rolled"`
+	CNIPriorityCanal  string `yaml:"cni-priority-canal"`
+	CNIPriorityCilium string `yaml:"cni-priority-cilium"`
+
+	Cilium   string `yaml:"cilium"`
+	Migrated string `yaml:"migrated"`
 
 	Value string `yaml:"value"`
 }

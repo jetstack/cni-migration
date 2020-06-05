@@ -19,6 +19,7 @@ import (
 	"github.com/joshvanl/cni-migration/pkg/migrate"
 	"github.com/joshvanl/cni-migration/pkg/preflight"
 	"github.com/joshvanl/cni-migration/pkg/prepare"
+	"github.com/joshvanl/cni-migration/pkg/priority"
 	"github.com/joshvanl/cni-migration/pkg/roll"
 )
 
@@ -31,13 +32,14 @@ type Options struct {
 	LogLevel   string
 	ConfigPath string
 
-	StepAll             bool
-	StepPreflight       bool
-	StepPrepare         bool
-	StepRollNodes       bool
-	StepMigrateNode     string
-	StepMigrateAllNodes bool
-	StepCleanUp         bool
+	StepAll               bool
+	StepPreflight         bool
+	StepPrepare           bool
+	StepRollNodes         bool
+	StepChangeCNIPriority bool
+	StepMigrateNode       string
+	StepMigrateAllNodes   bool
+	StepCleanUp           bool
 }
 
 const (
@@ -132,6 +134,7 @@ func run(ctx context.Context, config *config.Config, o *Options) error {
 		preflight.New,
 		prepare.New,
 		roll.New,
+		priority.New,
 		migrate.New,
 		cleanup.New,
 	} {
@@ -152,6 +155,7 @@ func run(ctx context.Context, config *config.Config, o *Options) error {
 		o.StepPreflight,
 		o.StepPrepare,
 		o.StepRollNodes,
+		o.StepChangeCNIPriority,
 		(len(o.StepMigrateNode) > 0 || o.StepMigrateAllNodes),
 		o.StepCleanUp,
 	}
