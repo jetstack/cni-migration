@@ -7,24 +7,29 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"k8s.io/client-go/kubernetes"
 
 	// Load all auth plugins
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	cliflag "k8s.io/component-base/cli/flag"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 
+	"github.com/joshvanl/cni-migration/pkg"
 	"github.com/joshvanl/cni-migration/pkg/cleanup"
+	"github.com/joshvanl/cni-migration/pkg/config"
 	"github.com/joshvanl/cni-migration/pkg/migrate"
 	"github.com/joshvanl/cni-migration/pkg/preflight"
 	"github.com/joshvanl/cni-migration/pkg/prepare"
 	"github.com/joshvanl/cni-migration/pkg/roll"
-	"github.com/joshvanl/cni-migration/pkg/types"
 )
 
+type NewFunc func(context.Context, *config.Config) pkg.Step
+type ReadyFunc func() (bool, error)
+type RunFunc func(bool) error
+
 type Options struct {
-	NoDryRun bool
-	LogLevel string
+	NoDryRun   bool
+	LogLevel   string
+	ConfigPath string
 
 	StepAll               bool
 	StepPreflight         bool
@@ -70,22 +75,17 @@ func NewRunCmd(ctx context.Context) *cobra.Command {
 				return fmt.Errorf("failed to parse --log-level: %s", err)
 			}
 
-			logger := logrus.New()
-			logger.SetLevel(lvl)
-			log := logrus.NewEntry(logger)
-			// set log  value to dry run if set
-
 			if o.StepMigrateSingleNode {
-				ctx = context.WithValue(ctx, types.ContextSingleNodeKey, "true")
+				ctx = context.WithValue(ctx, migrate.ContextSingleNodeKey, "true")
 			}
 
-			client, err := factory.KubernetesClientSet()
+			config, err := config.New(o.ConfigPath, lvl, factory)
 			if err != nil {
-				return fmt.Errorf("failed to build kubernetes client: %s", err)
+				return fmt.Errorf("failed to build config: %s", err)
 			}
 
-			if err := run(ctx, log, client, o); err != nil {
-				log.Error(err)
+			if err := run(ctx, config, o); err != nil {
+				config.Log.Error(err)
 				os.Exit(1)
 			}
 
@@ -120,22 +120,22 @@ func NewRunCmd(ctx context.Context) *cobra.Command {
 	return cmd
 }
 
-func run(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset, o *Options) error {
+func run(ctx context.Context, config *config.Config, o *Options) error {
 	dryrun := !o.NoDryRun
 
 	if dryrun {
-		log = log.WithField("dry-run", "true")
+		config.Log = config.Log.WithField("dry-run", "true")
 	}
 
-	var steps []types.Step
-	for _, f := range []types.NewFunc{
+	var steps []pkg.Step
+	for _, f := range []NewFunc{
 		preflight.New,
 		prepare.New,
 		roll.New,
 		migrate.New,
 		cleanup.New,
 	} {
-		steps = append(steps, f(ctx, log, client))
+		steps = append(steps, f(ctx, config))
 	}
 
 	if o.StepAll {
@@ -164,7 +164,7 @@ func run(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset, o
 	}
 
 	if maxStep == -1 {
-		log.Info("no steps specified")
+		config.Log.Info("no steps specified")
 		return nil
 	}
 
@@ -189,7 +189,7 @@ func run(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset, o
 		}
 	}
 
-	log.Info("steps successful.")
+	config.Log.Info("steps successful.")
 
 	return nil
 }

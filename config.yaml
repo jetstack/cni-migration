@@ -1,0 +1,51 @@
+# Node labels to use to check the status of each stage
+labels:
+  cilium-canal: node-role.kubernetes.io/cilium-canal
+  cilium: node-role.kubernetes.io/cilium
+  rolled: node-role.kubernetes.io/rolled
+  migrated: node-role.kubernetes.io/migrated
+  value: "true" # used as the value to each label key
+
+# File paths of resources for the migration
+paths:
+  cilium: ./resources/cilium.yaml
+  multus: ./resources/multus.yaml
+  knet-stress: ./resources/knet-stress.yaml
+
+# Resources required before any migration steps.
+preflightResources:
+  daemonsets:
+    knet-stress:
+    - knet-stress
+    - knet-stress-2
+  deployments:
+  statefulsets:
+
+# Resources to watch status for to ensure that the cluster is health at
+# each stage. Must be installed and ready at prepare.
+watchedResources:
+  daemonsets:
+    kube-system:
+    - canal
+    - cilium
+    - cilium-migrated
+    - kube-multus
+    knet-stress:
+    - knet-stress
+    - knet-stress-2
+  deployments:
+  statefulsets:
+
+
+# Resources to clean up at the end of the migration.
+cleanUpResources:
+  daemonsets:
+    kube-system:
+    - canal
+    - cilium-migrated
+    - kube-multus
+    knet-stress:
+    - knet-stress
+    - knet-stress-2
+  deployments:
+  statefulsets:

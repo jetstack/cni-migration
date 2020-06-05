@@ -7,26 +7,30 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/joshvanl/cni-migration/pkg/types"
+	"github.com/joshvanl/cni-migration/pkg"
+	"github.com/joshvanl/cni-migration/pkg/config"
 	"github.com/joshvanl/cni-migration/pkg/util"
 )
 
-var _ types.Step = &Roll{}
+var _ pkg.Step = &Roll{}
 
 type Roll struct {
+	ctx context.Context
+	log *logrus.Entry
+
+	config  *config.Config
 	client  *kubernetes.Clientset
-	log     *logrus.Entry
-	ctx     context.Context
 	factory *util.Factory
 }
 
-func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) types.Step {
-	log = log.WithField("step", "2-roll")
+func New(ctx context.Context, config *config.Config) pkg.Step {
+	log := config.Log.WithField("step", "2-roll")
 	return &Roll{
 		log:     log,
-		client:  client,
 		ctx:     ctx,
-		factory: util.New(log, ctx, client),
+		config:  config,
+		client:  config.Client,
+		factory: util.New(ctx, log, config.Client),
 	}
 }
 
@@ -39,7 +43,7 @@ func (r *Roll) Ready() (bool, error) {
 	}
 
 	for _, n := range nodes.Items {
-		if !hasRequiredLabel(n.Labels) {
+		if !r.hasRequiredLabel(n.Labels) {
 			return false, nil
 		}
 	}
@@ -64,7 +68,7 @@ func (r *Roll) Run(dryrun bool) error {
 	}
 
 	for _, n := range nodes.Items {
-		if !hasRequiredLabel(n.Labels) {
+		if !r.hasRequiredLabel(n.Labels) {
 			r.log.Infof("rolling node: %s", n.Name)
 
 			if err := r.node(dryrun, n.Name); err != nil {
@@ -130,7 +134,7 @@ func (r *Roll) node(dryrun bool, name string) error {
 		if node.Labels == nil {
 			node.Labels = make(map[string]string)
 		}
-		node.Labels[types.LabelRolledKey] = "true"
+		node.Labels[r.config.Labels.Rolled] = r.config.Labels.Value
 
 		_, err = r.client.CoreV1().Nodes().Update(r.ctx, node, metav1.UpdateOptions{})
 		if err != nil {
@@ -141,12 +145,12 @@ func (r *Roll) node(dryrun bool, name string) error {
 	return nil
 }
 
-func hasRequiredLabel(labels map[string]string) bool {
+func (r *Roll) hasRequiredLabel(labels map[string]string) bool {
 	if labels == nil {
 		return false
 	}
 
-	if _, ok := labels[types.LabelRolledKey]; !ok {
+	if v, ok := labels[r.config.Labels.Rolled]; !ok || v != r.config.Labels.Value {
 		return false
 	}
 

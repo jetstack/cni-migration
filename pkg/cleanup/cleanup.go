@@ -4,63 +4,55 @@ import (
 	"context"
 
 	"github.com/sirupsen/logrus"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/joshvanl/cni-migration/pkg/types"
+	"github.com/joshvanl/cni-migration/pkg"
+	"github.com/joshvanl/cni-migration/pkg/config"
 	"github.com/joshvanl/cni-migration/pkg/util"
 )
 
-var _ types.Step = &CleanUp{}
+var _ pkg.Step = &CleanUp{}
 
 type CleanUp struct {
+	ctx context.Context
+	log *logrus.Entry
+
+	config  *config.Config
 	client  *kubernetes.Clientset
-	log     *logrus.Entry
-	ctx     context.Context
 	factory *util.Factory
 }
 
-func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) types.Step {
-	log = log.WithField("step", "4-cleanup")
+func New(ctx context.Context, config *config.Config) pkg.Step {
+	log := config.Log.WithField("step", "4-cleanup")
 	return &CleanUp{
 		log:     log,
-		client:  client,
 		ctx:     ctx,
-		factory: util.New(log, ctx, client),
+		config:  config,
+		client:  config.Client,
+		factory: util.New(ctx, log, config.Client),
 	}
 }
 
 // Ready ensures that
 // - All migration resources have been cleaned up
 func (c *CleanUp) Ready() (bool, error) {
-	var found bool
-
-	for _, name := range types.DaemonSetCleanupNames {
-		_, err := c.client.AppsV1().DaemonSets("kube-system").Get(c.ctx, name, metav1.GetOptions{})
-		if apierrors.IsNotFound(err) {
-			continue
-		}
-
-		if err != nil {
-			return false, err
-		}
-
-		found = true
-		break
+	cleanUpResources, err := c.factory.Has(c.config.CleanUpResources)
+	if err != nil || cleanUpResources {
+		return !cleanUpResources, err
 	}
 
 	c.log.Info("step 4 ready")
 
-	return !found, nil
+	return true, nil
 }
 
 func (c *CleanUp) Run(dryrun bool) error {
 	c.log.Info("Cleaning up...")
 
-	c.log.Infof("deleting multus: %s", types.PathMultus)
+	c.log.Infof("deleting multus: %s", c.config.Paths.Multus)
 	if !dryrun {
-		if err := c.factory.DeleteResource(types.PathMultus, "kube-system"); err != nil {
+		if err := c.factory.DeleteResource(c.config.Paths.Multus, "kube-system"); err != nil {
 			return err
 		}
 	}

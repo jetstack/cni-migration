@@ -4,30 +4,33 @@ import (
 	"context"
 
 	"github.com/sirupsen/logrus"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/joshvanl/cni-migration/pkg/types"
+	"github.com/joshvanl/cni-migration/pkg"
+	"github.com/joshvanl/cni-migration/pkg/config"
 	"github.com/joshvanl/cni-migration/pkg/util"
 )
 
-var _ types.Step = &Prepare{}
+var _ pkg.Step = &Prepare{}
 
 type Prepare struct {
+	ctx context.Context
+	log *logrus.Entry
+
+	config  *config.Config
 	client  *kubernetes.Clientset
-	log     *logrus.Entry
-	ctx     context.Context
 	factory *util.Factory
 }
 
-func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) types.Step {
-	log = log.WithField("step", "1-prepare")
+func New(ctx context.Context, config *config.Config) pkg.Step {
+	log := config.Log.WithField("step", "1-prepare")
 	return &Prepare{
 		log:     log,
-		client:  client,
 		ctx:     ctx,
-		factory: util.New(log, ctx, client),
+		config:  config,
+		client:  config.Client,
+		factory: util.New(ctx, log, config.Client),
 	}
 }
 
@@ -42,7 +45,7 @@ func (p *Prepare) Ready() (bool, error) {
 	}
 
 	for _, n := range nodes.Items {
-		if !hasRequiredLabel(n.Labels) {
+		if !p.hasRequiredLabel(n.Labels) {
 			return false, nil
 		}
 	}
@@ -52,7 +55,7 @@ func (p *Prepare) Ready() (bool, error) {
 		return false, err
 	}
 
-	requiredResources, err := p.hasRequiredResources()
+	requiredResources, err := p.factory.Has(p.config.WatchedResources)
 	if err != nil || !requiredResources {
 		return false, err
 	}
@@ -75,15 +78,15 @@ func (p *Prepare) Run(dryrun bool) error {
 	}
 
 	for _, n := range nodes.Items {
-		if !hasRequiredLabel(n.Labels) {
+		if !p.hasRequiredLabel(n.Labels) {
 			p.log.Infof("updating label on node %s", n.Name)
 
 			if dryrun {
 				continue
 			}
 
-			delete(n.Labels, types.LabelCiliumKey)
-			n.Labels[types.LabelCanalCiliumKey] = types.LabelCanalCiliumValue
+			delete(n.Labels, p.config.Labels.Cilium)
+			n.Labels[p.config.Labels.CiliumCanal] = p.config.Labels.Value
 
 			_, err := p.client.CoreV1().Nodes().Update(p.ctx, n.DeepCopy(), metav1.UpdateOptions{})
 			if err != nil {
@@ -99,7 +102,7 @@ func (p *Prepare) Run(dryrun bool) error {
 
 	if !patched {
 		p.log.Infof("patching canal DaemonSet with node selector %s=%s",
-			types.LabelCanalCiliumKey, types.LabelCanalCiliumValue)
+			p.config.Labels.CiliumCanal, p.config.Labels.Value)
 
 		if !dryrun {
 			if err := p.patchCanal(); err != nil {
@@ -108,7 +111,7 @@ func (p *Prepare) Run(dryrun bool) error {
 		}
 	}
 
-	requiredResources, err := p.hasRequiredResources()
+	requiredResources, err := p.factory.Has(p.config.WatchedResources)
 	if err != nil {
 		return err
 	}
@@ -116,21 +119,14 @@ func (p *Prepare) Run(dryrun bool) error {
 	if !requiredResources {
 		p.log.Infof("creating cilium resources")
 		if !dryrun {
-			if err := p.factory.CreateDaemonSet(types.PathCilium, "kube-system", "cilium"); err != nil {
+			if err := p.factory.CreateDaemonSet(p.config.Paths.Cilium, "kube-system", "cilium"); err != nil {
 				return err
 			}
 		}
 
 		p.log.Infof("creating multus resources")
 		if !dryrun {
-			if err := p.factory.CreateDaemonSet(types.PathMultus, "kube-system", "kube-multus"); err != nil {
-				return err
-			}
-		}
-
-		p.log.Infof("creating knet-stress resources")
-		if !dryrun {
-			if err := p.factory.CreateDaemonSet(types.PathKnetStress, "knet-stress", "knet-stress"); err != nil {
+			if err := p.factory.CreateDaemonSet(p.config.Paths.Multus, "kube-system", "kube-multus"); err != nil {
 				return err
 			}
 		}
@@ -158,7 +154,7 @@ func (p *Prepare) patchCanal() error {
 	if ds.Spec.Template.Spec.NodeSelector == nil {
 		ds.Spec.Template.Spec.NodeSelector = make(map[string]string)
 	}
-	ds.Spec.Template.Spec.NodeSelector[types.LabelCanalCiliumKey] = types.LabelCanalCiliumValue
+	ds.Spec.Template.Spec.NodeSelector[p.config.Labels.CiliumCanal] = p.config.Labels.Value
 
 	_, err = p.client.AppsV1().DaemonSets("kube-system").Update(p.ctx, ds, metav1.UpdateOptions{})
 	if err != nil {
@@ -168,13 +164,13 @@ func (p *Prepare) patchCanal() error {
 	return nil
 }
 
-func hasRequiredLabel(labels map[string]string) bool {
+func (p *Prepare) hasRequiredLabel(labels map[string]string) bool {
 	if labels == nil {
 		return false
 	}
 
-	_, cclOK := labels[types.LabelCanalCiliumKey]
-	_, clOK := labels[types.LabelCiliumKey]
+	_, cclOK := labels[p.config.Labels.CiliumCanal]
+	_, clOK := labels[p.config.Labels.Cilium]
 
 	// If both true, or both false, does not have correct labels
 	if cclOK == clOK {
@@ -193,22 +189,8 @@ func (p *Prepare) canalIsPatched() (bool, error) {
 	if ds.Spec.Template.Spec.NodeSelector == nil {
 		return false, nil
 	}
-	if v, ok := ds.Spec.Template.Spec.NodeSelector[types.LabelCanalCiliumKey]; !ok || v != types.LabelCanalCiliumValue {
+	if v, ok := ds.Spec.Template.Spec.NodeSelector[p.config.Labels.CiliumCanal]; !ok || v != p.config.Labels.Value {
 		return false, nil
-	}
-
-	return true, nil
-}
-
-func (p *Prepare) hasRequiredResources() (bool, error) {
-	for name, namespace := range types.DaemonSetNames {
-		_, err := p.client.AppsV1().DaemonSets(namespace).Get(p.ctx, name, metav1.GetOptions{})
-		if apierrors.IsNotFound(err) {
-			return false, nil
-		}
-		if err != nil {
-			return false, err
-		}
 	}
 
 	return true, nil

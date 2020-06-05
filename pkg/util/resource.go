@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -12,26 +11,25 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-
-	"github.com/joshvanl/cni-migration/pkg/types"
 )
 
 type Factory struct {
+	ctx context.Context
+
 	log    *logrus.Entry
-	ctx    context.Context
 	client *kubernetes.Clientset
 }
 
-func New(log *logrus.Entry, ctx context.Context, client *kubernetes.Clientset) *Factory {
+func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) *Factory {
 	return &Factory{
-		log:    log,
 		ctx:    ctx,
+		log:    log,
 		client: client,
 	}
 }
 
-func (f *Factory) CreateDaemonSet(yamlFilePath, namespace, name string) error {
-	if err := f.createResource(yamlFilePath, namespace, name); err != nil {
+func (f *Factory) CreateDaemonSet(filePath, namespace, name string) error {
+	if err := f.createResource(filePath, namespace, name); err != nil {
 		return err
 	}
 
@@ -92,9 +90,7 @@ func (f *Factory) DeletePodsOnNode(nodeName string) error {
 	return nil
 }
 
-func (f *Factory) createResource(yamlFilePath, namespace, name string) error {
-	filePath := filepath.Join(types.ResourcesDirectory, yamlFilePath)
-
+func (f *Factory) createResource(filePath, namespace, name string) error {
 	f.log.Debugf("applying %s: %s", name, filePath)
 
 	args := []string{"kubectl", "apply", "--namespace", namespace, "-f", filePath}
@@ -105,9 +101,7 @@ func (f *Factory) createResource(yamlFilePath, namespace, name string) error {
 	return nil
 }
 
-func (f *Factory) DeleteResource(yamlFilePath, namespace string) error {
-	filePath := filepath.Join(types.ResourcesDirectory, yamlFilePath)
-
+func (f *Factory) DeleteResource(filePath, namespace string) error {
 	f.log.Debugf("deleting %s", filePath)
 
 	args := []string{"kubectl", "delete", "--namespace", namespace, "-f", filePath}

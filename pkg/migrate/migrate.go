@@ -9,26 +9,34 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/joshvanl/cni-migration/pkg/types"
+	"github.com/joshvanl/cni-migration/pkg"
+	"github.com/joshvanl/cni-migration/pkg/config"
 	"github.com/joshvanl/cni-migration/pkg/util"
 )
 
-var _ types.Step = &Migrate{}
+const (
+	ContextSingleNodeKey = "cni-migration-single-node"
+)
+
+var _ pkg.Step = &Migrate{}
 
 type Migrate struct {
+	ctx context.Context
+	log *logrus.Entry
+
+	config  *config.Config
 	client  *kubernetes.Clientset
-	log     *logrus.Entry
-	ctx     context.Context
 	factory *util.Factory
 }
 
-func New(ctx context.Context, log *logrus.Entry, client *kubernetes.Clientset) types.Step {
-	log = log.WithField("step", "3-migrate")
+func New(ctx context.Context, config *config.Config) pkg.Step {
+	log := config.Log.WithField("step", "3-migrate")
 	return &Migrate{
 		log:     log,
-		client:  client,
 		ctx:     ctx,
-		factory: util.New(log, ctx, client),
+		config:  config,
+		client:  config.Client,
+		factory: util.New(ctx, log, config.Client),
 	}
 }
 
@@ -41,7 +49,7 @@ func (m *Migrate) Ready() (bool, error) {
 	}
 
 	for _, n := range nodes.Items {
-		if !hasRequiredLabel(n.Labels) {
+		if !m.hasRequiredLabel(n.Labels) {
 			return false, nil
 		}
 	}
@@ -60,12 +68,12 @@ func (m *Migrate) Run(dryrun bool) error {
 	}
 
 	for _, n := range nodes.Items {
-		if !hasRequiredLabel(n.Labels) {
+		if !m.hasRequiredLabel(n.Labels) {
 			if err := m.node(dryrun, n.Name); err != nil {
 				return err
 			}
 
-			if v := m.ctx.Value(types.ContextSingleNodeKey); v == "true" {
+			if v := m.ctx.Value(ContextSingleNodeKey); v == "true" {
 				break
 			}
 		}
@@ -94,7 +102,8 @@ func (m *Migrate) node(dryrun bool, nodeName string) error {
 	}
 
 	// Add taint on node
-	m.log.Infof("Adding %s=%s:NoExecute taint to node %s ", types.LabelCiliumKey, types.LabelCiliumValue, nodeName)
+	m.log.Infof("Adding %s=%s:NoExecute taint to node %s ",
+		m.config.Labels.Cilium, m.config.Labels.Value, nodeName)
 	if !dryrun {
 		if err := m.addCiliumTaint(nodeName); err != nil {
 			return err
@@ -126,7 +135,8 @@ func (m *Migrate) node(dryrun bool, nodeName string) error {
 	}
 
 	// Remove taint on node
-	m.log.Infof("removing %s=%s:NoExecute taint on node %s", types.LabelCiliumKey, types.LabelCiliumValue, nodeName)
+	m.log.Infof("removing %s=%s:NoExecute taint on node %s",
+		m.config.Labels.Cilium, m.config.Labels.Value, nodeName)
 	if !dryrun {
 		if err := m.deleteCiliumTaint(nodeName); err != nil {
 			return err
@@ -145,7 +155,8 @@ func (m *Migrate) node(dryrun bool, nodeName string) error {
 		}
 	}
 
-	m.log.Infof("adding label %s=true to node %s", types.LabelMigratedKey, nodeName)
+	m.log.Infof("adding label %s=% to node %s",
+		m.config.Labels.Migrated, m.config.Labels.Value, nodeName)
 	if !dryrun {
 		if err := m.setNodeMigratedLabel(nodeName); err != nil {
 			return err
@@ -167,7 +178,7 @@ func (m *Migrate) deleteCiliumTaint(nodeName string) error {
 
 	var taints []corev1.Taint
 	for _, t := range node.Spec.Taints {
-		if t.Key != types.LabelCiliumKey {
+		if t.Key != m.config.Labels.Cilium {
 			taints = append(taints, t)
 		}
 	}
@@ -189,7 +200,7 @@ func (m *Migrate) addCiliumTaint(nodeName string) error {
 
 	hasTaint := false
 	for _, t := range node.Spec.Taints {
-		if t.Key == types.LabelCiliumKey {
+		if t.Key == m.config.Labels.Cilium {
 			hasTaint = true
 			break
 		}
@@ -197,15 +208,15 @@ func (m *Migrate) addCiliumTaint(nodeName string) error {
 
 	if !hasTaint {
 		node.Spec.Taints = append(node.Spec.Taints, corev1.Taint{
-			Key:    types.LabelCiliumKey,
-			Value:  types.LabelCiliumValue,
+			Key:    m.config.Labels.Cilium,
+			Value:  m.config.Labels.Value,
 			Effect: corev1.TaintEffectNoExecute,
 		})
 	}
 
 	// Change label of node
-	delete(node.Labels, types.LabelCanalCiliumKey)
-	node.Labels[types.LabelCiliumKey] = types.LabelCiliumValue
+	delete(node.Labels, m.config.Labels.CiliumCanal)
+	node.Labels[m.config.Labels.Cilium] = m.config.Labels.Value
 
 	node, err = m.client.CoreV1().Nodes().Update(m.ctx, node, metav1.UpdateOptions{})
 	if err != nil {
@@ -222,8 +233,8 @@ func (m *Migrate) setNodeMigratedLabel(nodeName string) error {
 	}
 
 	// Set migrated label
-	delete(node.Labels, types.LabelCanalCiliumKey)
-	node.Labels[types.LabelMigratedKey] = "true"
+	delete(node.Labels, m.config.Labels.CiliumCanal)
+	node.Labels[m.config.Labels.Migrated] = m.config.Labels.Value
 
 	_, err = m.client.CoreV1().Nodes().Update(m.ctx, node, metav1.UpdateOptions{})
 	if err != nil {
@@ -233,12 +244,12 @@ func (m *Migrate) setNodeMigratedLabel(nodeName string) error {
 	return nil
 }
 
-func hasRequiredLabel(labels map[string]string) bool {
+func (m *Migrate) hasRequiredLabel(labels map[string]string) bool {
 	if labels == nil {
 		return false
 	}
 
-	if _, ok := labels[types.LabelMigratedKey]; !ok {
+	if v, ok := labels[m.config.Labels.Migrated]; !ok || v != m.config.Labels.Value {
 		return false
 	}
 
