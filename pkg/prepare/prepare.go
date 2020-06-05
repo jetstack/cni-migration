@@ -133,7 +133,7 @@ func (p *Prepare) Run(dryrun bool) error {
 	}
 
 	if !dryrun {
-		if err := p.factory.WaitAllReady(); err != nil {
+		if err := p.factory.WaitAllReady(p.config.WatchedResources); err != nil {
 			return err
 		}
 

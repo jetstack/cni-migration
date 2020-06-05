@@ -1,45 +1,29 @@
 package util
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/joshvanl/cni-migration/pkg/config"
 )
 
-func (f *Factory) WaitAllReady() error {
-	nss, err := f.client.CoreV1().Namespaces().List(f.ctx, metav1.ListOptions{})
-	if err != nil {
-		return err
+func (f *Factory) WaitAllReady(resources *config.Resources) error {
+	for namespace, names := range resources.Deployments {
+		for _, name := range names {
+			if err := f.waitDeploymentReady(namespace, name); err != nil {
+				return err
+			}
+		}
 	}
 
-	for _, ns := range nss.Items {
-		deploys, err := f.client.AppsV1().Deployments(ns.Name).List(f.ctx, metav1.ListOptions{})
-		if err != nil {
-			return err
-		}
-
-		for _, deploy := range deploys.Items {
-			if err := f.waitDeploymentReady(ns.Name, deploy.Name); err != nil {
+	for namespace, names := range resources.DaemonSets {
+		for _, name := range names {
+			if err := f.WaitDaemonSetReady(namespace, name); err != nil {
 				return err
 			}
 		}
+	}
 
-		dss, err := f.client.AppsV1().DaemonSets(ns.Name).List(f.ctx, metav1.ListOptions{})
-		if err != nil {
-			return err
-		}
-
-		for _, ds := range dss.Items {
-			if err := f.WaitDaemonSetReady(ns.Name, ds.Name); err != nil {
-				return err
-			}
-		}
-
-		sss, err := f.client.AppsV1().StatefulSets(ns.Name).List(f.ctx, metav1.ListOptions{})
-		if err != nil {
-			return err
-		}
-
-		for _, ss := range sss.Items {
-			if err := f.waitStatefulSetReady(ns.Name, ss.Name); err != nil {
+	for namespace, names := range resources.StatefulSets {
+		for _, name := range names {
+			if err := f.waitStatefulSetReady(namespace, name); err != nil {
 				return err
 			}
 		}

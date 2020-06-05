@@ -122,7 +122,7 @@ func (m *Migrate) node(dryrun bool, nodeName string) error {
 			return err
 		}
 
-		if err := m.factory.WaitAllReady(); err != nil {
+		if err := m.factory.WaitAllReady(m.config.WatchedResources); err != nil {
 			return err
 		}
 
@@ -150,7 +150,7 @@ func (m *Migrate) node(dryrun bool, nodeName string) error {
 			return err
 		}
 
-		if err := m.factory.WaitAllReady(); err != nil {
+		if err := m.factory.WaitAllReady(m.config.WatchedResources); err != nil {
 			return err
 		}
 	}

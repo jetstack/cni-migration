@@ -95,7 +95,7 @@ func (r *Roll) node(dryrun bool, name string) error {
 			return err
 		}
 
-		if err := r.factory.WaitAllReady(); err != nil {
+		if err := r.factory.WaitAllReady(r.config.WatchedResources); err != nil {
 			return err
 		}
 	}
@@ -115,7 +115,7 @@ func (r *Roll) node(dryrun bool, name string) error {
 			return err
 		}
 
-		if err := r.factory.WaitAllReady(); err != nil {
+		if err := r.factory.WaitAllReady(r.config.WatchedResources); err != nil {
 			return err
 		}
 
