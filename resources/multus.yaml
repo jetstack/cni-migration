@@ -87,6 +87,7 @@ metadata:
     tier: node
     app: multus
 data:
+  #"clusterNetwork": "k8s-pod-network",
   cni-conf-canal-primary.json: |
     {
       "name": "multusi-cni-network",
@@ -98,8 +99,9 @@ data:
           "type": "multus",
           "kubeconfig": "/etc/kubernetes/cni/net.d/multus.d/multus.kubeconfig",
           "confDir": "/etc/kubernetes/cni/net.d",
-          "clusterNetwork": "k8s-pod-network",
-          "defaultNetworks": ["cilium"]
+          "clusterNetwork": "cbr0",
+          "defaultNetworks": ["cilium"],
+          "systemNamespaces": [""]
         }
       ]
     }
@@ -115,29 +117,33 @@ data:
           "kubeconfig": "/etc/kubernetes/cni/net.d/multus.d/multus.kubeconfig",
           "confDir": "/etc/kubernetes/cni/net.d",
           "clusterNetwork": "cilium",
-          "defaultNetworks": ["cbr0"]
+          "defaultNetworks": ["cbr0"],
+          "systemNamespaces": [""]
         }
       ]
     }
   cni-conf-flannel.json: |
-    {
-      "name": "cbr0",
-      "plugins": [
-        {
-          "type": "flannel",
-          "delegate": {
-            "hairpinMode": true,
-            "isDefaultGateway": true
-          }
-        },
-        {
-          "type": "portmap",
-          "capabilities": {
-            "portMappings": true
-          }
-        }
-      ]
-    }
+   {
+     "name": "cbr0",
+     "plugins": [
+       {
+         "type": "flannel",
+         "delegate": {
+           "hairpinMode": true,
+           "isDefaultGateway": true
+         }
+       },
+       {
+         "type": "portmap",
+         "capabilities": {
+           "portMappings": true
+         }
+       },
+       {
+         "type": "sbr"
+       }
+     ]
+   }
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -171,6 +177,22 @@ spec:
       - operator: Exists
         effect: NoSchedule
       serviceAccountName: multus
+      initContainers:
+      - name: install-cni
+        image: nfvpe/multus:v3.4.1
+        command:
+        - "/bin/bash"
+        - "-c"
+        - "curl -L https://github.com/containernetworking/plugins/releases/download/v0.8.6/cni-plugins-linux-amd64-v0.8.6.tgz | tar xvz -C /host/opt/cni/bin/ && cat /tmp/99-flannel.conflist > /host/etc/cni/net.d/99-flannel.conflist"
+        volumeMounts:
+        - name: cni
+          mountPath: /host/etc/cni/net.d
+        - name: cnibin
+          mountPath: /host/opt/cni/bin
+        - name: flannel-cfg
+          mountPath: /tmp
+        securityContext:
+          privileged: true
       containers:
       - name: kube-multus
         image: nfvpe/multus:v3.4.1
@@ -209,6 +231,14 @@ spec:
             items:
             - key: cni-conf-canal-primary.json
               path: 00-multus.conflist
+        - name: flannel-cfg
+          configMap:
+            name: multus-cni-config
+            items:
+            - key: cni-conf-flannel.json
+              path: 99-flannel.conflist
+            - key: cni-conf-cilium.json
+              path: 99-cilium.conflist
 ---
 apiVersion: apps/v1
 kind: DaemonSet
