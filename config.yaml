@@ -23,8 +23,8 @@ preflightResources:
   deployments:
   statefulsets:
 
-# Resources to watch status for to ensure that the cluster is health at
-# each stage. Must be installed and ready at prepare.
+# Resources to watch status for to ensure that the cluster is healthy at each
+# stage. Must be installed and ready at prepare.
 watchedResources:
   daemonsets:
     kube-system:
@@ -33,6 +33,7 @@ watchedResources:
     - cilium-migrated
     - kube-multus-canal
     - kube-multus-cilium
+    - kube-controller-manager
     knet-stress:
     - knet-stress
     - knet-stress-2
