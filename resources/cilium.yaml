@@ -350,7 +350,7 @@ spec:
       containers:
       - args:
         - --config-dir=/tmp/cilium/config-map
-        #- --ipv4-range=172.31.0.0/16 TODO: Change range according to default network install
+        - --ipv4-range=172.29.0.0/16 #TODO: Change range according to default network install
         command:
         - cilium-agent
         livenessProbe:
@@ -580,7 +580,7 @@ spec:
       containers:
       - args:
         - --config-dir=/tmp/cilium/config-map
-        #- --ipv4-range=172.31.0.0/16 TODO: Change range according to default network install
+        - --ipv4-range=172.29.0.0/16 #TODO: Change range according to default network install
         command:
         - cilium-agent
         livenessProbe:

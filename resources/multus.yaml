@@ -237,8 +237,6 @@ spec:
             items:
             - key: cni-conf-flannel.json
               path: 99-flannel.conflist
-            - key: cni-conf-cilium.json
-              path: 99-cilium.conflist
 ---
 apiVersion: apps/v1
 kind: DaemonSet
