@@ -34,12 +34,12 @@ watchedResources:
     - kube-multus-canal
     - kube-multus-cilium
     - kube-controller-manager
+    - kube-scheduler
     knet-stress:
     - knet-stress
     - knet-stress-2
   deployments:
   statefulsets:
-
 
 # Resources to clean up at the end of the migration.
 cleanUpResources:
