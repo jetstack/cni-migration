@@ -148,6 +148,8 @@ func run(ctx context.Context, config *config.Config, o *Options) error {
 			}
 		}
 
+		config.Log.Info("steps successful.")
+
 		return nil
 	}
 

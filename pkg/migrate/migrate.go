@@ -243,6 +243,7 @@ func (m *Migrate) setNodeMigratedLabel(nodeName string) error {
 	}
 
 	// Set migrated label
+	delete(node.Labels, m.config.Labels.CNIPriorityCilium)
 	delete(node.Labels, m.config.Labels.CanalCilium)
 	node.Labels[m.config.Labels.Migrated] = m.config.Labels.Value
 
@@ -260,6 +261,10 @@ func (m *Migrate) hasRequiredLabel(labels map[string]string) bool {
 	}
 
 	if v, ok := labels[m.config.Labels.Migrated]; !ok || v != m.config.Labels.Value {
+		return false
+	}
+
+	if v, ok := labels[m.config.Labels.CNIPriorityCilium]; ok && v == m.config.Labels.Value {
 		return false
 	}
 

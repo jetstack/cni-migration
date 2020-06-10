@@ -112,7 +112,10 @@ func (p *Priority) hasRequiredLabel(labels map[string]string) bool {
 		return false
 	}
 
-	if v, ok := labels[p.config.Labels.CNIPriorityCilium]; !ok || v != p.config.Labels.Value {
+	_, okPrio := labels[p.config.Labels.CNIPriorityCilium]
+	_, okMigrated := labels[p.config.Labels.Migrated]
+
+	if !okPrio && !okMigrated {
 		return false
 	}
 

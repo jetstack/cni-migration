@@ -177,12 +177,27 @@ func (p *Prepare) hasRequiredLabel(labels map[string]string) bool {
 
 	_, prioCan := labels[p.config.Labels.CNIPriorityCanal]
 	_, prioCil := labels[p.config.Labels.CNIPriorityCilium]
+	_, migrated := labels[p.config.Labels.Migrated]
 
 	// If both true, or both false, does not have correct labels
 	if cclOK == clOK {
 		return false
 	}
-	if prioCan == prioCil {
+
+	var onlyOne bool
+	for _, b := range []bool{
+		prioCan, prioCil, migrated,
+	} {
+		if b {
+			if onlyOne {
+				return false
+			}
+
+			onlyOne = true
+		}
+	}
+
+	if !onlyOne {
 		return false
 	}
 
