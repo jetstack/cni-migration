@@ -179,11 +179,11 @@ spec:
       serviceAccountName: multus
       initContainers:
       - name: install-cni
-        image: nfvpe/multus:v3.4.1
+        image: gcr.io/jetstack-cre/multus:v3.4.1-cni-bundle-0
         command:
         - "/bin/bash"
         - "-c"
-        - "curl -L https://github.com/containernetworking/plugins/releases/download/v0.8.6/cni-plugins-linux-amd64-v0.8.6.tgz | tar xvz -C /host/opt/cni/bin/ && cat /tmp/99-flannel.conflist > /host/etc/cni/net.d/99-flannel.conflist"
+        - "cp /opt/cni/bin/* /host/opt/cni/bin && cat /tmp/99-flannel.conflist > /host/etc/cni/net.d/99-flannel.conflist"
         volumeMounts:
         - name: cni
           mountPath: /host/etc/cni/net.d
@@ -195,7 +195,7 @@ spec:
           privileged: true
       containers:
       - name: kube-multus
-        image: nfvpe/multus:v3.4.1
+        image: gcr.io/jetstack-cre/multus:v3.4.1-cni-bundle-0
         command: ["/entrypoint.sh"]
         args:
         - "--multus-conf-file=/tmp/multus-conf/00-multus.conflist"
@@ -272,11 +272,11 @@ spec:
       serviceAccountName: multus
       initContainers:
       - name: install-cni
-        image: nfvpe/multus:v3.4.1
+        image: gcr.io/jetstack-cre/multus:v3.4.1-cni-bundle-0
         command:
         - "/bin/bash"
         - "-c"
-        - "curl -L https://github.com/containernetworking/plugins/releases/download/v0.8.6/cni-plugins-linux-amd64-v0.8.6.tgz | tar xvz -C /host/opt/cni/bin/ && cat /tmp/99-flannel.conflist > /host/etc/cni/net.d/99-flannel.conflist"
+        - "cp /opt/cni/bin/* /host/opt/cni/bin && cat /tmp/99-flannel.conflist > /host/etc/cni/net.d/99-flannel.conflist"
         volumeMounts:
         - name: cni
           mountPath: /host/etc/cni/net.d
@@ -288,7 +288,7 @@ spec:
           privileged: true
       containers:
       - name: kube-multus
-        image: nfvpe/multus:v3.4.1
+        image: gcr.io/jetstack-cre/multus:v3.4.1-cni-bundle-0
         command: ["/entrypoint.sh"]
         args:
         - "--multus-conf-file=/tmp/multus-conf/00-multus.conflist"
