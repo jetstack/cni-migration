@@ -99,7 +99,7 @@ data:
           "type": "multus",
           "kubeconfig": "/etc/kubernetes/cni/net.d/multus.d/multus.kubeconfig",
           "confDir": "/etc/kubernetes/cni/net.d",
-          "clusterNetwork": "cbr0",
+          "clusterNetwork": "k8s-pod-network",
           "defaultNetworks": ["cilium"],
           "systemNamespaces": [""]
         }
@@ -179,23 +179,22 @@ spec:
       serviceAccountName: multus
       initContainers:
       - name: install-cni
-        image: gcr.io/jetstack-cre/multus:v3.4.1-cni-bundle-0
+        image: gcr.io/jetstack-cre/multus:v3.4.1-cni-bundle-1
         command:
         - "/bin/bash"
         - "-c"
-        - "cp /opt/cni/bin/* /host/opt/cni/bin && cat /tmp/99-flannel.conflist > /host/etc/cni/net.d/99-flannel.conflist"
+        # Set cbr on canal CNI chaining config
+        - "CNI_PATH='/host/etc/cni/net.d/10-calico.conflist'; CNI_CONFIG=$(cat $CNI_PATH); if [[ ! $(echo $CNI_CONFIG  | jq '.plugins | .[] | select(.type == \"sbr\")') ]]; then echo $CNI_CONFIG | jq '.plugins += [{\"type\": \"sbr\"}]' > $CNI_PATH  ; fi && cp /opt/cni/bin/* /host/opt/cni/bin"
         volumeMounts:
         - name: cni
           mountPath: /host/etc/cni/net.d
         - name: cnibin
           mountPath: /host/opt/cni/bin
-        - name: flannel-cfg
-          mountPath: /tmp
         securityContext:
           privileged: true
       containers:
       - name: kube-multus
-        image: gcr.io/jetstack-cre/multus:v3.4.1-cni-bundle-0
+        image: gcr.io/jetstack-cre/multus:v3.4.1-cni-bundle-1
         command: ["/entrypoint.sh"]
         args:
         - "--multus-conf-file=/tmp/multus-conf/00-multus.conflist"
@@ -231,12 +230,6 @@ spec:
             items:
             - key: cni-conf-canal-primary.json
               path: 00-multus.conflist
-        - name: flannel-cfg
-          configMap:
-            name: multus-cni-config
-            items:
-            - key: cni-conf-flannel.json
-              path: 99-flannel.conflist
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -272,7 +265,7 @@ spec:
       serviceAccountName: multus
       initContainers:
       - name: install-cni
-        image: gcr.io/jetstack-cre/multus:v3.4.1-cni-bundle-0
+        image: gcr.io/jetstack-cre/multus:v3.4.1-cni-bundle-1
         command:
         - "/bin/bash"
         - "-c"
@@ -288,7 +281,7 @@ spec:
           privileged: true
       containers:
       - name: kube-multus
-        image: gcr.io/jetstack-cre/multus:v3.4.1-cni-bundle-0
+        image: gcr.io/jetstack-cre/multus:v3.4.1-cni-bundle-1
         command: ["/entrypoint.sh"]
         args:
         - "--multus-conf-file=/tmp/multus-conf/00-multus.conflist"

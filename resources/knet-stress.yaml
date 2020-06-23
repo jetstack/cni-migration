@@ -73,22 +73,23 @@ spec:
     spec:
       containers:
       - args:
+        - server
         - --connection-rate=5s
         - --endpoint-name=knet-stress
         - --endpoint-namespace=knet-stress
           #- --serving-address=127.0.0.1
-        - --serving-address=0.0.0.0
+        - --serving-address=0.0.0.0:6443
         env:
         - name: KNET_STRESS_INSTANCE_ID
           valueFrom:
             fieldRef:
               apiVersion: v1
               fieldPath: spec.nodeName
-        image: gcr.io/jetstack-josh/knet-stress:cli
+        image: gcr.io/jetstack-josh/knet-stress:v0.1.0-alpha.0
         imagePullPolicy: Always
         name: knet-stress
         ports:
-        - containerPort: 6433
+        - containerPort: 6443
           protocol: TCP
           name: web
       tolerations:
@@ -124,22 +125,23 @@ spec:
     spec:
       containers:
       - args:
+        - server
         - --connection-rate=5s
         - --endpoint-name=knet-stress
         - --endpoint-namespace=knet-stress
           #- --serving-address=127.0.0.1
-        - --serving-address=0.0.0.0
+        - --serving-address=0.0.0.0:6443
         env:
         - name: KNET_STRESS_INSTANCE_ID
           valueFrom:
             fieldRef:
               apiVersion: v1
               fieldPath: spec.nodeName
-        image: gcr.io/jetstack-josh/knet-stress:cli
+        image: gcr.io/jetstack-josh/knet-stress:v0.1.0-alpha.0
         imagePullPolicy: Always
         name: knet-stress
         ports:
-        - containerPort: 6433
+        - containerPort: 6443
           protocol: TCP
           name: web
       tolerations:
