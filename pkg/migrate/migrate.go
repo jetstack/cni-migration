@@ -2,7 +2,6 @@ package migrate
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -15,7 +14,7 @@ import (
 )
 
 const (
-	ContextNodeKey = "cni-migration-node"
+	ContextNodesKey = "cni-migration-migrate-nodes"
 )
 
 var _ pkg.Step = &Migrate{}
@@ -60,32 +59,27 @@ func (m *Migrate) Ready() (bool, error) {
 }
 
 func (m *Migrate) Run(dryrun bool) error {
-
-	if v := m.ctx.Value(ContextNodeKey); v != nil {
-		nodeName, ok := v.(string)
-		if !ok {
-			return fmt.Errorf("failed to get node name from context: %#+v", v)
-		}
-
-		m.log.Infof("migrating node %s ...", nodeName)
-
-		if err := m.node(dryrun, nodeName); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	m.log.Info("migrating nodes...")
-
-	nodes, err := m.client.CoreV1().Nodes().List(m.ctx, metav1.ListOptions{})
+	nodes, flagEnabled, err := util.NodesFromContext(m.client, m.ctx, ContextNodesKey)
 	if err != nil {
 		return err
 	}
 
-	for _, n := range nodes.Items {
-		if !m.hasRequiredLabel(n.Labels) {
-			if err := m.node(dryrun, n.Name); err != nil {
+	if !flagEnabled {
+		m.log.Info("migrating all nodes...")
+
+		nodesList, err := m.client.CoreV1().Nodes().List(m.ctx, metav1.ListOptions{})
+		if err != nil {
+			return err
+		}
+
+		nodes = nodesList.Items
+	}
+
+	for _, node := range nodes {
+		m.log.Infof("migrating nodes %s...", node.Name)
+
+		if !m.hasRequiredLabel(node.Labels) {
+			if err := m.node(dryrun, node.Name); err != nil {
 				return err
 			}
 		}
@@ -103,12 +97,12 @@ func (m *Migrate) node(dryrun bool, nodeName string) error {
 		}
 
 		args := []string{"kubectl", "drain", "--delete-local-data", "--ignore-daemonsets", nodeName}
-		if err := m.factory.RunCommand(args...); err != nil {
+		if err := m.factory.RunCommand(nil, args...); err != nil {
 			return err
 		}
 
 		args = []string{"kubectl", "taint", "node", nodeName, "node-role.kubernetes.io/cilium=cilium:NoExecute", "--overwrite"}
-		if err := m.factory.RunCommand(args...); err != nil {
+		if err := m.factory.RunCommand(nil, args...); err != nil {
 			return err
 		}
 	}
@@ -156,7 +150,7 @@ func (m *Migrate) node(dryrun bool, nodeName string) error {
 	m.log.Infof("uncordoning node %s", nodeName)
 	if !dryrun {
 		args := []string{"kubectl", "uncordon", nodeName}
-		if err := m.factory.RunCommand(args...); err != nil {
+		if err := m.factory.RunCommand(nil, args...); err != nil {
 			return err
 		}
 

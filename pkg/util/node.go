@@ -15,7 +15,7 @@ func (f *Factory) RollNode(dryrun bool, nodeName string, watchResources *config.
 
 	if !dryrun {
 		args := []string{"kubectl", "drain", "--delete-local-data", "--ignore-daemonsets", nodeName}
-		if err := f.RunCommand(args...); err != nil {
+		if err := f.RunCommand(nil, args...); err != nil {
 			return err
 		}
 
@@ -35,7 +35,7 @@ func (f *Factory) RollNode(dryrun bool, nodeName string, watchResources *config.
 	f.log.Infof("uncordoning node %s", nodeName)
 	if !dryrun {
 		args := []string{"kubectl", "uncordon", nodeName}
-		if err := f.RunCommand(args...); err != nil {
+		if err := f.RunCommand(nil, args...); err != nil {
 			return err
 		}
 

@@ -12,6 +12,10 @@ import (
 	"github.com/joshvanl/cni-migration/pkg/util"
 )
 
+const (
+	ContextNodesKey = "cni-migration-roll-nodes"
+)
+
 var _ pkg.Step = &Roll{}
 
 type Roll struct {
@@ -54,24 +58,27 @@ func (r *Roll) Ready() (bool, error) {
 }
 
 func (r *Roll) Run(dryrun bool) error {
-	r.log.Info("rolling nodes to install multi CNI...")
-
-	if !dryrun {
-		if err := r.factory.CheckKnetStress(); err != nil {
-			return err
-		}
-	}
-
-	nodes, err := r.client.CoreV1().Nodes().List(r.ctx, metav1.ListOptions{})
+	nodes, flagEnabled, err := util.NodesFromContext(r.client, r.ctx, ContextNodesKey)
 	if err != nil {
 		return err
 	}
 
-	for _, n := range nodes.Items {
-		if !r.hasRequiredLabel(n.Labels) {
-			r.log.Infof("rolling node: %s", n.Name)
+	if !flagEnabled {
+		r.log.Info("rolling all nodes...")
 
-			if err := r.node(dryrun, n.Name); err != nil {
+		nodesList, err := r.client.CoreV1().Nodes().List(r.ctx, metav1.ListOptions{})
+		if err != nil {
+			return err
+		}
+
+		nodes = nodesList.Items
+	}
+
+	for _, node := range nodes {
+		if !r.hasRequiredLabel(node.Labels) {
+			r.log.Infof("rolling node: %s", node.Name)
+
+			if err := r.node(dryrun, node.Name); err != nil {
 				return err
 			}
 
@@ -82,6 +89,12 @@ func (r *Roll) Run(dryrun bool) error {
 }
 
 func (r *Roll) node(dryrun bool, name string) error {
+	if !dryrun {
+		if err := r.factory.CheckKnetStress(); err != nil {
+			return err
+		}
+	}
+
 	if err := r.factory.RollNode(dryrun, name, r.config.WatchedResources); err != nil {
 		return err
 	}

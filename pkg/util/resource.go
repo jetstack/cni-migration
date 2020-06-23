@@ -2,6 +2,7 @@ package util
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 
@@ -40,7 +41,7 @@ func (f *Factory) createResource(filePath, namespace, name string) error {
 	f.log.Debugf("applying %s: %s", name, filePath)
 
 	args := []string{"kubectl", "apply", "--namespace", namespace, "-f", filePath}
-	if err := f.RunCommand(args...); err != nil {
+	if err := f.RunCommand(nil, args...); err != nil {
 		return err
 	}
 
@@ -51,18 +52,18 @@ func (f *Factory) DeleteResource(filePath, namespace string) error {
 	f.log.Debugf("deleting %s", filePath)
 
 	args := []string{"kubectl", "delete", "--namespace", namespace, "-f", filePath}
-	if err := f.RunCommand(args...); err != nil {
+	if err := f.RunCommand(nil, args...); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (f *Factory) RunCommand(args ...string) error {
+func (f *Factory) RunCommand(stdout io.Writer, args ...string) error {
 	f.log.Debugf("%s", args)
 
 	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdout = nil
+	cmd.Stdout = stdout
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
 	if err != nil {

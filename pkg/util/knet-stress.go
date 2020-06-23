@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,8 +27,8 @@ func (f *Factory) CheckKnetStress() error {
 
 		ready := true
 		for _, pod := range pods.Items {
-			args := []string{"kubectl", "exec", "--namespace", "knet-stress", pod.Name, "--", "/knet-stress", "-status"}
-			if err := f.RunCommand(args...); err != nil {
+			args := []string{"kubectl", "exec", "--namespace", "knet-stress", pod.Name, "--", "/knet-stress", "status"}
+			if err := f.RunCommand(os.Stdout, args...); err != nil {
 				f.log.Error(err.Error())
 				ready = false
 				break

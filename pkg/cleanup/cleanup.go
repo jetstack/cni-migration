@@ -42,13 +42,37 @@ func (c *CleanUp) Ready() (bool, error) {
 		return !cleanUpResources, err
 	}
 
+	ds, err := c.client.AppsV1().DaemonSets("kube-system").Get(c.ctx, "cilium-migrated", metav1.GetOptions{})
+	if err != nil {
+		return false, err
+	}
+
+	if _, ok := ds.Spec.Template.Spec.NodeSelector[c.config.Labels.Cilium]; ok {
+		return false, nil
+	}
+
 	c.log.Info("step 5 ready")
 
 	return true, nil
 }
 
 func (c *CleanUp) Run(dryrun bool) error {
-	c.log.Info("Cleaning up...")
+	c.log.Info("cleaning up...")
+
+	c.log.Info("removing node selector from cilium-migrated")
+	if !dryrun {
+		ds, err := c.client.AppsV1().DaemonSets("kube-system").Get(c.ctx, "cilium-migrated", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		delete(ds.Spec.Template.Spec.NodeSelector, c.config.Labels.Cilium)
+
+		_, err = c.client.AppsV1().DaemonSets("kube-system").Update(c.ctx, ds, metav1.UpdateOptions{})
+		if err != nil {
+			return err
+		}
+	}
 
 	c.log.Infof("deleting multus: %s", c.config.Paths.Multus)
 	if !dryrun {

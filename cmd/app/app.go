@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
-
 	// Load all auth plugins
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 	cliflag "k8s.io/component-base/cli/flag"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 
@@ -32,14 +32,28 @@ type Options struct {
 	LogLevel   string
 	ConfigPath string
 
-	StepAll               bool
-	StepPreflight         bool
-	StepPrepare           bool
-	StepRollNodes         bool
-	StepChangeCNIPriority bool
-	StepMigrateNode       string
-	StepMigrateAllNodes   bool
-	StepCleanUp           bool
+	StepAll bool
+
+	//0
+	StepPreflight bool
+
+	// 1
+	StepPrepare bool
+
+	// 2
+	StepRollNodes    []string
+	StepRollAllNodes bool
+
+	// 3
+	StepChangeCNIPriority    []string
+	StepChangeCNIAllPriority bool
+
+	// 4
+	StepMigrateNodes    []string
+	StepMigrateAllNodes bool
+
+	// 5
+	StepCleanUp bool
 }
 
 const (
@@ -77,8 +91,16 @@ func NewRunCmd(ctx context.Context) *cobra.Command {
 				return fmt.Errorf("failed to parse --log-level: %s", err)
 			}
 
-			if len(o.StepMigrateNode) > 0 {
-				ctx = context.WithValue(ctx, migrate.ContextNodeKey, o.StepMigrateNode)
+			if len(o.StepRollNodes) > 0 {
+				ctx = context.WithValue(ctx, roll.ContextNodesKey, o.StepRollNodes)
+			}
+
+			if len(o.StepChangeCNIPriority) > 0 {
+				ctx = context.WithValue(ctx, priority.ContextNodesKey, o.StepChangeCNIPriority)
+			}
+
+			if len(o.StepMigrateNodes) > 0 {
+				ctx = context.WithValue(ctx, migrate.ContextNodesKey, o.StepMigrateNodes)
 			}
 
 			config, err := config.New(o.ConfigPath, lvl, factory)
@@ -156,9 +178,13 @@ func run(ctx context.Context, config *config.Config, o *Options) error {
 	stepBool := []bool{
 		o.StepPreflight,
 		o.StepPrepare,
-		o.StepRollNodes,
-		o.StepChangeCNIPriority,
-		(len(o.StepMigrateNode) > 0 || o.StepMigrateAllNodes),
+
+		(len(o.StepRollNodes) > 0 || o.StepRollAllNodes),
+
+		(len(o.StepChangeCNIPriority) > 0 || o.StepChangeCNIAllPriority),
+
+		(len(o.StepMigrateNodes) > 0 || o.StepMigrateAllNodes),
+
 		o.StepCleanUp,
 	}
 
@@ -180,22 +206,39 @@ func run(ctx context.Context, config *config.Config, o *Options) error {
 		}
 
 		if enabled {
+
+			if i > 0 {
+				// Ensure previous step is read before proceeding
+				if err := ensureStepReady(i-1, steps[i-1]); err != nil {
+					return err
+				}
+			}
+
 			if err := steps[i].Run(dryrun); err != nil {
 				return err
 			}
-		} else {
-			ready, err := steps[i].Ready()
-			if err != nil {
-				return fmt.Errorf("step %d failed: %s", i, err)
-			}
 
-			if !ready {
-				return fmt.Errorf("step %d not ready...", i)
+		} else {
+			if err := ensureStepReady(i, steps[i]); err != nil {
+				return err
 			}
 		}
 	}
 
 	config.Log.Info("steps successful.")
+
+	return nil
+}
+
+func ensureStepReady(i int, step pkg.Step) error {
+	ready, err := step.Ready()
+	if err != nil {
+		return fmt.Errorf("step %d failed: %s", i, err)
+	}
+
+	if !ready {
+		return fmt.Errorf("step %d not ready...", i)
+	}
 
 	return nil
 }

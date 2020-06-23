@@ -12,6 +12,10 @@ import (
 	"github.com/joshvanl/cni-migration/pkg/util"
 )
 
+const (
+	ContextNodesKey = "cni-migration-priority-nodes"
+)
+
 var _ pkg.Step = &Priority{}
 
 type Priority struct {
@@ -54,23 +58,32 @@ func (p *Priority) Ready() (bool, error) {
 }
 
 func (p *Priority) Run(dryrun bool) error {
-	p.log.Info("reversing priority of CNI to cilium...")
-
 	if !dryrun {
 		if err := p.factory.CheckKnetStress(); err != nil {
 			return err
 		}
 	}
 
-	nodes, err := p.client.CoreV1().Nodes().List(p.ctx, metav1.ListOptions{})
+	nodes, flagEnabled, err := util.NodesFromContext(p.client, p.ctx, ContextNodesKey)
 	if err != nil {
 		return err
 	}
 
-	for _, n := range nodes.Items {
-		if !p.hasRequiredLabel(n.Labels) {
-			p.log.Infof("changing CNI priority to Cilium on node %s", n.Name)
-			if err := p.node(dryrun, n.Name); err != nil {
+	if !flagEnabled {
+		p.log.Info("reversing priority of CNI to cilium on all nodes...")
+
+		nodesList, err := p.client.CoreV1().Nodes().List(p.ctx, metav1.ListOptions{})
+		if err != nil {
+			return err
+		}
+
+		nodes = nodesList.Items
+	}
+
+	for _, node := range nodes {
+		if !p.hasRequiredLabel(node.Labels) {
+			p.log.Infof("changing CNI priority to Cilium on node %s", node.Name)
+			if err := p.node(dryrun, node.Name); err != nil {
 				return err
 			}
 		}
