@@ -85,7 +85,7 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: spec.nodeName
-        image: gcr.io/jetstack-josh/knet-stress:v0.1.0-alpha.0
+        image: gcr.io/jetstack-josh/knet-stress:v0.1.0-alpha.1
         imagePullPolicy: Always
         name: knet-stress
         ports:
@@ -137,7 +137,7 @@ spec:
             fieldRef:
               apiVersion: v1
               fieldPath: spec.nodeName
-        image: gcr.io/jetstack-josh/knet-stress:v0.1.0-alpha.0
+        image: gcr.io/jetstack-josh/knet-stress:v0.1.0-alpha.1
         imagePullPolicy: Always
         name: knet-stress
         ports:
