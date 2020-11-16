@@ -5,9 +5,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/joshvanl/cni-migration/pkg"
-	"github.com/joshvanl/cni-migration/pkg/config"
-	"github.com/joshvanl/cni-migration/pkg/util"
+	"github.com/jetstack/cni-migration/pkg"
+	"github.com/jetstack/cni-migration/pkg/config"
+	"github.com/jetstack/cni-migration/pkg/util"
 )
 
 var _ pkg.Step = &Preflight{}

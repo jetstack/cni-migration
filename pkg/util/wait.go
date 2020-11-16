@@ -1,7 +1,7 @@
 package util
 
 import (
-	"github.com/joshvanl/cni-migration/pkg/config"
+	"github.com/jetstack/cni-migration/pkg/config"
 )
 
 func (f *Factory) WaitAllReady(resources *config.Resources) error {

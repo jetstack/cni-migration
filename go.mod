@@ -1,4 +1,4 @@
-module github.com/joshvanl/cni-migration
+module github.com/jetstack/cni-migration
 
 go 1.14
 

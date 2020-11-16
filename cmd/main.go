@@ -9,7 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/joshvanl/cni-migration/cmd/app"
+	"github.com/jetstack/cni-migration/cmd/app"
 )
 
 func main() {
